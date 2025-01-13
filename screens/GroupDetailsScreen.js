@@ -8,12 +8,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
+import Icon from "react-native-vector-icons/EvilIcons"; // Import EvilIcons for trash icon
 
 export default function GroupDetailsScreen({ route, navigation }) {
   const { group } = route.params;
-  console.log(group);
   const [items, setItems] = useState(group.items || []);
   const [members, setMembers] = useState(group.members || []);
   const [newItem, setNewItem] = useState({ name: "", amount: "", payer: "" });
@@ -45,7 +46,12 @@ export default function GroupDetailsScreen({ route, navigation }) {
       Alert.alert("Error", "Amount must be a positive number!");
       return;
     }
-    setItems([...items, { ...newItem, deleted: false }]);
+    const newItemWithDate = {
+      ...newItem,
+      createdAt: new Date().toISOString(),
+      deleted: false,
+    };
+    setItems([...items, newItemWithDate]);
     setNewItem({ name: "", amount: "", payer: "" });
     setIsAdding(false);
   };
@@ -75,21 +81,12 @@ export default function GroupDetailsScreen({ route, navigation }) {
 
   const deleteGroup = async () => {
     try {
-      // Fetch stored groups
       const storedGroupsString = await AsyncStorage.getItem("groups");
       const storedGroups = JSON.parse(storedGroupsString) || [];
-      console.log("Stored Groups before deletion:", storedGroups);
-
-      // Filter out the group to be deleted
       const updatedGroups = storedGroups.filter(
         (g) => g.name.trim().toLowerCase() !== group.name.trim().toLowerCase()
       );
-      console.log("Updated Groups after deletion:", updatedGroups);
-
-      // Save updated groups back to AsyncStorage
       await AsyncStorage.setItem("groups", JSON.stringify(updatedGroups));
-
-      // Alert user and navigate back
       Alert.alert("Group Deleted", "The group has been successfully deleted.");
       navigation.goBack();
     } catch (error) {
@@ -165,22 +162,47 @@ export default function GroupDetailsScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.total}>Total: ₹{total.toFixed(2)}</Text>
+      <Text style={styles.total}>
+        Total: ₹{total && !isNaN(total) ? total.toFixed(2) : "0.00"}
+      </Text>
       {isSettled && <Text style={styles.settledText}>Group Settled</Text>}
-      <Button
-        title="Details"
-        onPress={() => Alert.alert("Details", JSON.stringify(paidBy, null, 2))}
-      />
+      <View style={styles.buttonsRow}>
+        <Button
+          title="Details"
+          onPress={() =>
+            Alert.alert("Details", JSON.stringify(paidBy, null, 2))
+          }
+          color="#007bff"
+          style={styles.button}
+        />
+        <Button
+          title="Settle"
+          onPress={settleGroup}
+          color="#28a745"
+          style={styles.button}
+        />
+      </View>
       <FlatList
         data={items}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item, index }) => (
           <View style={styles.item}>
-            <Text style={item.deleted ? styles.deleted : null}>
-              {item.name} - ₹{item.amount} - Paid by {item.payer}
-            </Text>
+            <View>
+              <Text style={item.deleted ? styles.deleted : styles.itemText}>
+                {item.name || "Unnamed Item"} - ₹{item.amount || "0.00"} - Paid
+                by {item.payer || "Unknown"}
+              </Text>
+              <Text style={styles.createdDate}>
+                Created on: {new Date(item.createdAt).toLocaleString()}
+              </Text>
+            </View>
             {!item.deleted && (
-              <Button title="Delete" onPress={() => deleteItem(index)} />
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteItem(index)}
+              >
+                <Icon name="trash" size={25} color="#dc3545" />
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -214,14 +236,33 @@ export default function GroupDetailsScreen({ route, navigation }) {
               ))}
             </Picker>
           </View>
-          <Button title="Add Item" onPress={addItem} />
-          <Button title="Cancel" onPress={() => setIsAdding(false)} />
+          <TouchableOpacity style={styles.actionButton} onPress={addItem}>
+            <Text style={styles.actionButtonText}>Add Item</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.cancelButton]}
+            onPress={() => setIsAdding(false)}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
       ) : (
-        <Button title="Add Item" onPress={() => setIsAdding(true)} />
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => setIsAdding(true)}
+        >
+          <Text style={styles.actionButtonText}>Add Item</Text>
+        </TouchableOpacity>
       )}
-      <Button title="Settle Group" onPress={settleGroup} />
-      <Button title="Delete Group" color="red" onPress={deleteGroup} />
+      <View style={styles.buttonsRow}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => deleteGroup()}
+        >
+          <Icon name="trash" size={20} color="#dc3545" />
+          <Text>Delete Group</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -230,47 +271,89 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    backgroundColor: "#fff",
   },
   total: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 12,
+    color: "#333",
   },
   settledText: {
-    fontSize: 18,
+    fontSize: 14,
     color: "green",
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  buttonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  button: {
+    width: "48%",
   },
   item: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 8,
-    marginVertical: 4,
+    padding: 10,
+    marginVertical: 6,
     backgroundColor: "#f9f9f9",
+    borderRadius: 6,
+  },
+  itemText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  createdDate: {
+    fontSize: 10,
+    color: "#888",
   },
   deleted: {
     textDecorationLine: "line-through",
     color: "red",
   },
+  deleteButton: {
+    padding: 0,
+    backgroundColor: "#fff",
+  },
   addItem: {
     marginTop: 16,
   },
   input: {
+    height: 36,
     borderWidth: 1,
     borderColor: "#ccc",
-    padding: 8,
-    marginVertical: 4,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    fontSize: 14,
   },
   pickerContainer: {
-    marginVertical: 8,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: "#ccc",
-    borderRadius: 4,
-    overflow: "hidden",
+    borderRadius: 6,
   },
   picker: {
-    height: 55,
-    width: "100%",
+    height: 40,
+  },
+  actionButton: {
+    backgroundColor: "#007bff",
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  cancelButton: {
+    backgroundColor: "#ccc",
+  },
+  cancelButtonText: {
+    color: "#333",
   },
 });
