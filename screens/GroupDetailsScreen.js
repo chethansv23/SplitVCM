@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Icon from "react-native-vector-icons/EvilIcons"; // Import EvilIcons for trash icon
+import Icon from "react-native-vector-icons/EvilIcons"; // Import EvilIcons for trash icon and close icon
 
 export default function GroupDetailsScreen({ route, navigation }) {
   const { group } = route.params;
@@ -80,19 +80,46 @@ export default function GroupDetailsScreen({ route, navigation }) {
   };
 
   const deleteGroup = async () => {
-    try {
-      const storedGroupsString = await AsyncStorage.getItem("groups");
-      const storedGroups = JSON.parse(storedGroupsString) || [];
-      const updatedGroups = storedGroups.filter(
-        (g) => g.name.trim().toLowerCase() !== group.name.trim().toLowerCase()
-      );
-      await AsyncStorage.setItem("groups", JSON.stringify(updatedGroups));
-      Alert.alert("Group Deleted", "The group has been successfully deleted.");
-      navigation.goBack();
-    } catch (error) {
-      console.error("Failed to delete group:", error);
-      Alert.alert("Error", "An error occurred while deleting the group.");
-    }
+    Alert.alert(
+      "Confirm Deletion",
+      `Are you sure you want to delete the group "${group.name}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "OK",
+          onPress: async () => {
+            try {
+              const storedGroupsString = await AsyncStorage.getItem("groups");
+              const storedGroups = JSON.parse(storedGroupsString) || [];
+              const updatedGroups = storedGroups.filter(
+                (g) =>
+                  g.name.trim().toLowerCase() !==
+                  group.name.trim().toLowerCase()
+              );
+              await AsyncStorage.setItem(
+                "groups",
+                JSON.stringify(updatedGroups)
+              );
+              Alert.alert(
+                "Group Deleted",
+                "The group has been successfully deleted."
+              );
+              navigation.goBack();
+            } catch (error) {
+              console.error("Failed to delete group:", error);
+              Alert.alert(
+                "Error",
+                "An error occurred while deleting the group."
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: false }
+    );
   };
 
   const calculateTotals = () => {
@@ -162,6 +189,18 @@ export default function GroupDetailsScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Delete Group Button */}
+      <View style={styles.header}>
+        {/* Group Name */}
+        <Text style={styles.groupName}>{group.name}</Text>
+        <TouchableOpacity
+          style={styles.deleteGroupButton}
+          onPress={deleteGroup}
+        >
+          <Icon name="close" size={30} color="#dc3545" />
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.total}>
         Total: ₹{total && !isNaN(total) ? total.toFixed(2) : "0.00"}
       </Text>
@@ -254,15 +293,6 @@ export default function GroupDetailsScreen({ route, navigation }) {
           <Text style={styles.actionButtonText}>Add Item</Text>
         </TouchableOpacity>
       )}
-      <View style={styles.buttonsRow}>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => deleteGroup()}
-        >
-          <Icon name="trash" size={20} color="#dc3545" />
-          <Text>Delete Group</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -272,6 +302,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row", // Aligns items horizontally
+    alignItems: "center", // Centers the items vertically
+    marginBottom: 16, // Optional margin if you need spacing
+  },
+  deleteGroupButton: {
+    position: "absolute",
+    top: 3,
+    right: 10,
+  },
+  groupName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
   },
   total: {
     fontSize: 18,
@@ -321,22 +366,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    height: 36,
+    height: 40,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 1,
     marginBottom: 8,
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: "center",
   },
   pickerContainer: {
-    marginBottom: 8,
+    marginBottom: 0,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,
+    fontSize: 12,
   },
   picker: {
-    height: 40,
+    height: 55,
+    paddingHorizontal: 1,
+    fontSize: 12,
   },
   actionButton: {
     backgroundColor: "#007bff",
