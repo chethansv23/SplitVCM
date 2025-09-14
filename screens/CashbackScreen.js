@@ -15,17 +15,17 @@ export default function CashbackScreen() {
   const navigation = useNavigation();
   const [cashbackGroups, setCashbackGroups] = useState([]);
 
-  useEffect(() => {
-    const loadCashbackGroups = async () => {
-      try {
-        const storedCashbacks = await AsyncStorage.getItem("cashbacks");
-        console.log(JSON.stringify(storedCashbacks));
-        if (storedCashbacks) setCashbackGroups(JSON.parse(storedCashbacks));
-      } catch (err) {
-        console.error("Failed to load cashbacks:", err);
-      }
-    };
+  const loadCashbackGroups = async () => {
+    try {
+      const storedCashbacks = await AsyncStorage.getItem("cashbacks");
+      // console.log(JSON.stringify(storedCashbacks));
+      if (storedCashbacks) setCashbackGroups(JSON.parse(storedCashbacks));
+    } catch (err) {
+      console.error("Failed to load cashbacks:", err);
+    }
+  };
 
+  useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadCashbackGroups();
     });
@@ -44,7 +44,10 @@ export default function CashbackScreen() {
           <TouchableOpacity
             style={styles.groupItem}
             onPress={() =>
-              navigation.navigate("CashbackGroupDetails", { group: item })
+              navigation.navigate("CashbackGroupDetails", {
+                group: item,
+                loadCashbackGroups,
+              })
             }
           >
             <View style={styles.groupContent}>

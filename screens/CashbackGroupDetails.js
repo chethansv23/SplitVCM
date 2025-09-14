@@ -11,13 +11,13 @@ import {
 } from "react-native";
 
 export default function CashbackGroupDetails({ route }) {
-  const { group } = route.params;
+  const { group, loadCashbackGroups } = route.params;
   console.log("group:", group?.totalCashback);
 
   const [transactions, setTransactions] = useState(group.transactions || []);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(group.categories[0]?.name || "");
-  const [totalCashback, setTotalCashback] = useState(group?.totalCashback || 0);
+  // const [totalCashback, setTotalCashback] = useState(0);
 
   const getCashback = (amount, category) => {
     const cat = group.categories.find((c) => c.name === category);
@@ -32,15 +32,18 @@ export default function CashbackGroupDetails({ route }) {
     return cashback;
   };
 
-  const saveTransactions = async (updated) => {
+  const saveTransactions = async (updated, currentTotalCashback) => {
     setTransactions(updated);
 
     const stored = await AsyncStorage.getItem("cashbacks");
     const groups = stored ? JSON.parse(stored) : [];
     const updatedGroups = groups.map((g) =>
-      g.id === group.id ? { ...g, totalCashback, transactions: updated } : g
+      g.id === group.id
+        ? { ...g, totalCashback: currentTotalCashback, transactions: updated }
+        : g
     );
     await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
+    await loadCashbackGroups();
   };
 
   const addTransaction = async () => {
@@ -51,22 +54,25 @@ export default function CashbackGroupDetails({ route }) {
       category,
       cashback: getCashback(parseFloat(amount) || 0, category),
     };
-    setTotalCashback(totalCashback + newTx.cashback);
-    await saveTransactions([...transactions, newTx]);
+    // setTotalCashback(totalCashback + newTx.cashback);
+    await saveTransactions(
+      [...transactions, newTx],
+      group.totalCashback + newTx.cashback
+    );
     setAmount("");
   };
 
   const deleteTransaction = async (id) => {
     const tan = transactions.find((t) => t.id == id);
     const updated = transactions.filter((tx) => tx.id !== id);
-    setTotalCashback(totalCashback - tan.cashback);
-    await saveTransactions(updated);
+    // setTotalCashback(totalCashback - tan.cashback);
+    await saveTransactions(updated, group.totalCashback - tan.cashback);
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{group.name}</Text>
-      <Text style={styles.total}>Total Cashback: ₹{totalCashback}</Text>
+      <Text style={styles.total}>Total Cashback: ₹{group.totalCashback}</Text>
 
       {/* Add transaction inputs */}
       <TextInput

@@ -49,6 +49,7 @@ export default function CreateCashbackGroup({ navigation }) {
       name: groupName,
       categories,
       transactions: [],
+      totalCashback: 0,
     };
     const updatedGroups = [...groups, newGroup];
     await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
