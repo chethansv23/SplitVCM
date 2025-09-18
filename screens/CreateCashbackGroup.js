@@ -12,6 +12,7 @@ import {
 
 export default function CreateCashbackGroup({ navigation }) {
   const [groupName, setGroupName] = useState("");
+  const [groupCap, setGroupCap] = useState(0);
   const [categories, setCategories] = useState([]);
   const [categoryName, setCategoryName] = useState("");
   const [percentage, setPercentage] = useState("");
@@ -35,6 +36,7 @@ export default function CreateCashbackGroup({ navigation }) {
         name: categoryName,
         percentage: parseFloat(percentage),
         cap: cap ? parseFloat(cap) : null,
+        totalCashback: 0
       },
     ]);
     setCategoryName("");
@@ -49,6 +51,7 @@ export default function CreateCashbackGroup({ navigation }) {
       name: groupName,
       categories,
       transactions: [],
+      groupCap,
       totalCashback: 0,
     };
     const updatedGroups = [...groups, newGroup];
@@ -64,6 +67,12 @@ export default function CreateCashbackGroup({ navigation }) {
         value={groupName}
         onChangeText={setGroupName}
         placeholder="e.g. Credit Card A"
+      />
+      <TextInput
+        style={styles.input}
+        value={groupCap}
+        onChangeText={setGroupCap}
+        placeholder="cap (optional)"
       />
 
       <Text style={styles.label}>Add Categories</Text>
