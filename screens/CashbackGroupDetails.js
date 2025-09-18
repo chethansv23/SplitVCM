@@ -25,10 +25,13 @@ export default function CashbackGroupDetails({ route }) {
 
     const pct = parseFloat(cat.percentage) || 0;
     const cap = cat.cap ? parseFloat(cat.cap) : null;
+    const catTotalCashback = parseFloat(cat?.totalcashback || '0');
+    const groupTotalcashback = parseFloat(group?.totalcashback || '0');
+    const groupCap = group.groupCap ? parseFloat(group.groupCap) : null;
 
     let cashback = Math.floor((parseFloat(amount) * pct) / 100);
-    if (cap && cashback > cap) cashback = cap;
-
+    if (cap && (cashback + catTotalCashback)> cap) cashback = cap - cat.totalcasback;
+    if(groupCap && (cashback + groupTotalcashback) > groupCap) cashback = groupCap - groupTotalcashback;
     return cashback;
   };
 
@@ -73,6 +76,7 @@ export default function CashbackGroupDetails({ route }) {
     <View style={styles.container}>
       <Text style={styles.header}>{group.name}</Text>
       <Text style={styles.total}>Total Cashback: ₹{group.totalCashback}</Text>
+      <Text style={styles.createdAt}>Created On: {new Date(group.id).toLocaleString()}</Text>
 
       {/* Add transaction inputs */}
       <TextInput
@@ -118,6 +122,7 @@ export default function CashbackGroupDetails({ route }) {
             <Text style={{ flex: 1 }}>
               {item.category} - ₹{item.amount} → ₹{item.cashback}
             </Text>
+            <Text style={{flex:1}}>Created At: {new Date(item.id).toLocaleString()}</Text>
             <Button
               title="X"
               color="red"
@@ -137,6 +142,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   header: { fontSize: 22, fontWeight: "bold" },
   total: { fontSize: 18, marginVertical: 10 },
+  createdAt: { fontSize: 16, marginVertical: 10 },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
