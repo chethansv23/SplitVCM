@@ -1,6 +1,5 @@
-import { FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Button,
   FlatList,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Icon from "react-native-vector-icons/EvilIcons";
 
 export default function CashbackGroupDetails({ route }) {
   const { group, loadCashbackGroups } = route.params;
@@ -18,6 +18,7 @@ export default function CashbackGroupDetails({ route }) {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(group.categories[0]?.name || "");
   const [totalCashback, setTotalCashback] = useState(group.totalCashback);
+  const inputRef = useRef(null);
   console.log("🚀 ~ CashbackGroupDetails ~ totalCashback:", totalCashback);
 
   const getCashback = (amount, category) => {
@@ -72,6 +73,7 @@ export default function CashbackGroupDetails({ route }) {
       group.totalCashback + newTx.cashback
     );
     setAmount("");
+    inputRef.current?.blur();
   };
 
   const deleteTransaction = async (id) => {
@@ -83,7 +85,9 @@ export default function CashbackGroupDetails({ route }) {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{group.name}</Text>
-      <Text style={styles.total}>Total Cashback: ₹{totalCashback}</Text>
+      <Text style={styles.total}>
+        Total Cashback: <Text style={styles.totalAmount}>₹{totalCashback}</Text>
+      </Text>
       <Text style={styles.createdAt}>
         Created On: {new Date(group.id).toLocaleString()}
       </Text>
@@ -91,6 +95,7 @@ export default function CashbackGroupDetails({ route }) {
 
       {/* Add transaction inputs */}
       <TextInput
+        ref={inputRef}
         value={amount}
         onChangeText={setAmount}
         placeholder="Amount"
@@ -141,8 +146,11 @@ export default function CashbackGroupDetails({ route }) {
                 Created: {new Date(item.id).toLocaleString()}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => deleteTransaction(item.id)}>
-              <FontAwesome5 name="trash-alt" size={24} color="red" />
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => deleteTransaction(item.id)}
+            >
+              <Icon name="trash" size={25} color="#dc3545" />
             </TouchableOpacity>
           </View>
         )}
@@ -157,8 +165,20 @@ export default function CashbackGroupDetails({ route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   header: { fontSize: 22, fontWeight: "bold" },
-  total: { fontSize: 18, marginVertical: 10 },
+  total: {
+    fontSize: 18,
+    marginVertical: 10,
+    fontWeight: "bold", // optional
+  },
+  totalAmount: {
+    color: "#28A745", // green
+    fontWeight: "bold",
+  },
   createdAt: { fontSize: 16, marginVertical: 4, color: "#555" },
+  deleteButton: {
+    padding: 0,
+    backgroundColor: "#fff",
+  },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
