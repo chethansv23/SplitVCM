@@ -1,3 +1,4 @@
+import { FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState } from "react";
 import {
@@ -97,7 +98,7 @@ export default function CashbackGroupDetails({ route }) {
         style={styles.input}
       />
 
-      {/* Category picker (basic buttons for each category) */}
+      {/* Category picker */}
       <View style={styles.categoriesRow}>
         {group.categories.map((c) => (
           <TouchableOpacity
@@ -129,17 +130,20 @@ export default function CashbackGroupDetails({ route }) {
         style={{ marginTop: 20 }}
         renderItem={({ item }) => (
           <View style={styles.transactionItem}>
-            <Text style={{ flex: 1 }}>
-              {item.category} - ₹{item.amount} → ₹{item.cashback}
-            </Text>
-            <Text style={{ flex: 1 }}>
-              Created At: {new Date(item.id).toLocaleString()}
-            </Text>
-            <Button
-              title="X"
-              color="red"
-              onPress={() => deleteTransaction(item.id)}
-            />
+            <View style={styles.transactionDetails}>
+              <Text style={styles.transactionText}>
+                {item.category} - ₹{item.amount}
+              </Text>
+              <Text style={styles.transactionText}>
+                Cashback: ₹{item.cashback}
+              </Text>
+              <Text style={styles.transactionText}>
+                Created: {new Date(item.id).toLocaleString()}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => deleteTransaction(item.id)}>
+              <FontAwesome5 name="trash-alt" size={24} color="red" />
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={() => (
@@ -154,7 +158,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   header: { fontSize: 22, fontWeight: "bold" },
   total: { fontSize: 18, marginVertical: 10 },
-  createdAt: { fontSize: 16, marginVertical: 10 },
+  createdAt: { fontSize: 16, marginVertical: 4, color: "#555" },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -187,12 +191,22 @@ const styles = StyleSheet.create({
   },
   transactionItem: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,
-    padding: 8,
-    marginBottom: 8,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: "#f9f9f9",
+  },
+  transactionDetails: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  transactionText: {
+    fontSize: 14,
+    marginBottom: 2,
   },
   emptyText: {
     textAlign: "center",
