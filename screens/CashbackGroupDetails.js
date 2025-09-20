@@ -16,7 +16,8 @@ export default function CashbackGroupDetails({ route }) {
   const [transactions, setTransactions] = useState(group.transactions || []);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(group.categories[0]?.name || "");
-  const [totalCashback, setTotalCashback] = useState(group.totalCashback || 0);
+  const [totalCashback, setTotalCashback] = useState(group.totalCashback);
+  console.log("🚀 ~ CashbackGroupDetails ~ totalCashback:", totalCashback);
 
   const getCashback = (amount, category) => {
     const cat = group.categories.find((c) => c.name === category);
@@ -53,6 +54,7 @@ export default function CashbackGroupDetails({ route }) {
         : g
     );
     await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
+    setTotalCashback(currentTotalCashback);
     await loadCashbackGroups();
   };
 
@@ -64,7 +66,6 @@ export default function CashbackGroupDetails({ route }) {
       category,
       cashback: getCashback(parseFloat(amount) || 0, category),
     };
-    setTotalCashback(totalCashback + newTx.cashback);
     await saveTransactions(
       [...transactions, newTx],
       group.totalCashback + newTx.cashback
@@ -75,7 +76,6 @@ export default function CashbackGroupDetails({ route }) {
   const deleteTransaction = async (id) => {
     const tan = transactions.find((t) => t.id == id);
     const updated = transactions.filter((tx) => tx.id !== id);
-    setTotalCashback(totalCashback - tan.cashback);
     await saveTransactions(updated, group.totalCashback - tan.cashback);
   };
 
@@ -114,7 +114,7 @@ export default function CashbackGroupDetails({ route }) {
                 category === c.name && styles.selectedCategoryText,
               ]}
             >
-              {c.name + "(" + c.cap + ")"}
+              {c.name + "(" + (c?.cap || "oo") + ")"}
             </Text>
           </TouchableOpacity>
         ))}
