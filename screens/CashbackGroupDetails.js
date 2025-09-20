@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Button,
   FlatList,
@@ -12,12 +12,11 @@ import {
 
 export default function CashbackGroupDetails({ route }) {
   const { group, loadCashbackGroups } = route.params;
-  console.log("group:", group?.totalCashback);
 
   const [transactions, setTransactions] = useState(group.transactions || []);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(group.categories[0]?.name || "");
-  // const [totalCashback, setTotalCashback] = useState(0);
+  const [totalCashback, setTotalCashback] = useState(group.totalCashback || 0);
 
   const getCashback = (amount, category) => {
     const cat = group.categories.find((c) => c.name === category);
@@ -25,13 +24,21 @@ export default function CashbackGroupDetails({ route }) {
 
     const pct = parseFloat(cat.percentage) || 0;
     const cap = cat.cap ? parseFloat(cat.cap) : null;
-    const catTotalCashback = parseFloat(cat?.totalcashback || '0');
-    const groupTotalcashback = parseFloat(group?.totalcashback || '0');
+    const catTotalCashback = parseFloat(cat?.totalCashback || "0");
+    const groupTotalcashback = parseFloat(group?.totalCashback || "0");
     const groupCap = group.groupCap ? parseFloat(group.groupCap) : null;
 
     let cashback = Math.floor((parseFloat(amount) * pct) / 100);
-    if (cap && (cashback + catTotalCashback)> cap) cashback = cap - cat.totalcasback;
-    if(groupCap && (cashback + groupTotalcashback) > groupCap) cashback = groupCap - groupTotalcashback;
+    if (cap && cashback + catTotalCashback > cap)
+      cashback = cap - catTotalCashback;
+    if (groupCap && cashback + groupTotalcashback > groupCap)
+      cashback = groupCap - groupTotalcashback;
+    const updatedCatgeoris = group.categories.map((g) =>
+      g.name === category
+        ? { ...g, totalCashback: g.totalCashback + cashback }
+        : g
+    );
+    group.categories = updatedCatgeoris;
     return cashback;
   };
 
@@ -57,7 +64,7 @@ export default function CashbackGroupDetails({ route }) {
       category,
       cashback: getCashback(parseFloat(amount) || 0, category),
     };
-    // setTotalCashback(totalCashback + newTx.cashback);
+    setTotalCashback(totalCashback + newTx.cashback);
     await saveTransactions(
       [...transactions, newTx],
       group.totalCashback + newTx.cashback
@@ -68,15 +75,18 @@ export default function CashbackGroupDetails({ route }) {
   const deleteTransaction = async (id) => {
     const tan = transactions.find((t) => t.id == id);
     const updated = transactions.filter((tx) => tx.id !== id);
-    // setTotalCashback(totalCashback - tan.cashback);
+    setTotalCashback(totalCashback - tan.cashback);
     await saveTransactions(updated, group.totalCashback - tan.cashback);
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{group.name}</Text>
-      <Text style={styles.total}>Total Cashback: ₹{group.totalCashback}</Text>
-      <Text style={styles.createdAt}>Created On: {new Date(group.id).toLocaleString()}</Text>
+      <Text style={styles.total}>Total Cashback: ₹{totalCashback}</Text>
+      <Text style={styles.createdAt}>
+        Created On: {new Date(group.id).toLocaleString()}
+      </Text>
+      <Text style={styles.createdAt}>Cap: {group?.groupCap || "oo"}</Text>
 
       {/* Add transaction inputs */}
       <TextInput
@@ -104,7 +114,7 @@ export default function CashbackGroupDetails({ route }) {
                 category === c.name && styles.selectedCategoryText,
               ]}
             >
-              {c.name}
+              {c.name + "(" + c.cap + ")"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -122,7 +132,9 @@ export default function CashbackGroupDetails({ route }) {
             <Text style={{ flex: 1 }}>
               {item.category} - ₹{item.amount} → ₹{item.cashback}
             </Text>
-            <Text style={{flex:1}}>Created At: {new Date(item.id).toLocaleString()}</Text>
+            <Text style={{ flex: 1 }}>
+              Created At: {new Date(item.id).toLocaleString()}
+            </Text>
             <Button
               title="X"
               color="red"
