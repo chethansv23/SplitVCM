@@ -15,67 +15,87 @@ import Icon from "react-native-vector-icons/EvilIcons";
 export default function CashbackGroupDetails({ route, navigation }) {
   const { group, loadCashbackGroups } = route.params;
 
+  const [localGroup, setLocalGroup] = useState(group);
   const [transactions, setTransactions] = useState(group.transactions || []);
   const [amount, setAmount] = useState("");
+  const [tranName, setTranName] = useState("");
   const [category, setCategory] = useState(group.categories[0]?.name || "");
-  const [totalCashback, setTotalCashback] = useState(group.totalCashback);
+  const [totalCashback, setTotalCashback] = useState(group.totalCashback || 0);
   const inputRef = useRef(null);
-  console.log("🚀 ~ CashbackGroupDetails ~ totalCashback:", totalCashback);
 
   const getCashback = (amount, category) => {
-    const cat = group.categories.find((c) => c.name === category);
+    const cat = localGroup.categories.find((c) => c.name === category);
     if (!cat) return 0;
 
     const pct = parseFloat(cat.percentage) || 0;
     const cap = cat.cap ? parseFloat(cat.cap) : null;
     const catTotalCashback = parseFloat(cat?.totalCashback || "0");
-    const groupTotalcashback = parseFloat(group?.totalCashback || "0");
-    const groupCap = group.groupCap ? parseFloat(group.groupCap) : null;
+    const groupTotalCashback = parseFloat(localGroup?.totalCashback || "0");
+    const groupCap = localGroup.groupCap
+      ? parseFloat(localGroup.groupCap)
+      : null;
 
     let cashback = Math.floor((parseFloat(amount) * pct) / 100);
+
     if (cap && cashback + catTotalCashback > cap)
       cashback = cap - catTotalCashback;
-    if (groupCap && cashback + groupTotalcashback > groupCap)
-      cashback = groupCap - groupTotalcashback;
-    const updatedCatgeoris = group.categories.map((g) =>
-      g.name === category
-        ? { ...g, totalCashback: g.totalCashback + cashback }
-        : g
-    );
-    group.categories = updatedCatgeoris;
+    if (groupCap && cashback + groupTotalCashback > groupCap)
+      cashback = groupCap - groupTotalCashback;
+
     return cashback;
   };
 
-  const saveTransactions = async (updated, currentTotalCashback) => {
+  const saveTransactions = async (
+    updated,
+    currentTotalCashback,
+    updatedCategories
+  ) => {
     setTransactions(updated);
+
+    const newGroup = {
+      ...localGroup,
+      totalCashback: currentTotalCashback > 0 ? currentTotalCashback : 0,
+      transactions: updated,
+      categories: updatedCategories || localGroup.categories,
+    };
+
+    setLocalGroup(newGroup);
+    setTotalCashback(newGroup.totalCashback);
+
     const stored = await AsyncStorage.getItem("cashbacks");
     const groups = stored ? JSON.parse(stored) : [];
     const updatedGroups = groups.map((g) =>
-      g.id === group.id
-        ? {
-            ...g,
-            totalCashback: currentTotalCashback > 0 ? currentTotalCashback : 0,
-            transactions: updated,
-          }
-        : g
+      g.id === newGroup.id ? newGroup : g
     );
+
     await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
     await loadCashbackGroups();
-    setTotalCashback(currentTotalCashback);
   };
 
   const addTransaction = async () => {
     if (!amount || isNaN(amount)) return;
+    const cashback = getCashback(parseFloat(amount) || 0, category);
+
+    const updatedCategories = localGroup.categories.map((g) =>
+      g.name === category
+        ? { ...g, totalCashback: g.totalCashback + cashback }
+        : g
+    );
+
     const newTx = {
       id: Date.now(),
+      name: tranName,
       amount: parseFloat(amount),
       category,
-      cashback: getCashback(parseFloat(amount) || 0, category),
+      cashback,
     };
+
     await saveTransactions(
       [...transactions, newTx],
-      group.totalCashback + newTx.cashback
+      localGroup.totalCashback + cashback,
+      updatedCategories
     );
+    setTranName("");
     setAmount("");
     inputRef.current?.blur();
   };
@@ -83,7 +103,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
   const deleteGroup = async (id) => {
     Alert.alert(
       "Confirm Deletion",
-      `Are you sure you want to delete the group "${group.name}"?`,
+      `Are you sure you want to delete the group "${localGroup.name}"?`,
       [
         {
           text: "Cancel",
@@ -124,7 +144,8 @@ export default function CashbackGroupDetails({ route, navigation }) {
   const deleteTransaction = async (id) => {
     const tan = transactions.find((t) => t.id == id);
     const updated = transactions.filter((tx) => tx.id !== id);
-    const updatedCatgeoris = group.categories.map((g) =>
+
+    const updatedCategories = localGroup.categories.map((g) =>
       g.name === tan.category
         ? {
             ...g,
@@ -135,31 +156,44 @@ export default function CashbackGroupDetails({ route, navigation }) {
           }
         : g
     );
-    group.categories = updatedCatgeoris;
-    await saveTransactions(updated, group.totalCashback - tan.cashback);
+
+    await saveTransactions(
+      updated,
+      localGroup.totalCashback - tan.cashback,
+      updatedCategories
+    );
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         {/* Group Name */}
-        <Text style={styles.groupName}>{group.name}</Text>
+        <Text style={styles.groupName}>{localGroup.name}</Text>
         <TouchableOpacity
           style={styles.deleteGroupButton}
-          onPress={() => deleteGroup(group.id)}
+          onPress={() => deleteGroup(localGroup.id)}
         >
           <Icon name="close" size={30} color="#dc3545" />
         </TouchableOpacity>
       </View>
+
       <Text style={styles.total}>
         Total Cashback: <Text style={styles.totalAmount}>₹{totalCashback}</Text>
       </Text>
       <Text style={styles.createdAt}>
-        Created On: {new Date(group.id).toLocaleString()}
+        Created On: {new Date(localGroup.id).toLocaleString()}
       </Text>
-      <Text style={styles.createdAt}>Cap: {group?.groupCap || "oo"}</Text>
+      <Text style={styles.createdAt}>Cap: {localGroup?.groupCap || "oo"}</Text>
 
       {/* Add transaction inputs */}
+      <TextInput
+        ref={inputRef}
+        value={tranName}
+        onChangeText={setTranName}
+        placeholder="Name"
+        placeholderTextColor="#888"
+        style={styles.input}
+      />
       <TextInput
         ref={inputRef}
         value={amount}
@@ -172,7 +206,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
 
       {/* Category picker */}
       <View style={styles.categoriesRow}>
-        {group.categories.map((c) => (
+        {localGroup.categories.map((c) => (
           <TouchableOpacity
             key={c.name}
             onPress={() => setCategory(c.name)}
@@ -203,9 +237,11 @@ export default function CashbackGroupDetails({ route, navigation }) {
         renderItem={({ item }) => (
           <View style={styles.transactionItem}>
             <View style={styles.transactionDetails}>
+              <Text style={styles.transactionText}>Name: {item?.name}</Text>
               <Text style={styles.transactionText}>
-                {item.category} - ₹{item.amount}
+                Category: {item.category}
               </Text>
+              <Text style={styles.transactionText}>Amount: ₹{item.amount}</Text>
               <Text style={styles.transactionText}>
                 Cashback: ₹{item.cashback}
               </Text>
@@ -232,9 +268,9 @@ export default function CashbackGroupDetails({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   header: {
-    flexDirection: "row", // Aligns items horizontally
-    alignItems: "center", // Centers the items vertically
-    marginBottom: 16, // Optional margin if you need spacing
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
   groupName: {
     fontSize: 18,
@@ -249,10 +285,10 @@ const styles = StyleSheet.create({
   total: {
     fontSize: 18,
     marginVertical: 10,
-    fontWeight: "bold", // optional
+    fontWeight: "bold",
   },
   totalAmount: {
-    color: "#28A745", // green
+    color: "#28A745",
     fontWeight: "bold",
   },
   createdAt: { fontSize: 16, marginVertical: 4, color: "#555" },
