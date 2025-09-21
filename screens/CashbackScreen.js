@@ -18,7 +18,7 @@ export default function CashbackScreen() {
   const loadCashbackGroups = async () => {
     try {
       const storedCashbacks = (await AsyncStorage.getItem("cashbacks")) || "[]";
-      console.log(JSON.stringify(storedCashbacks));
+      // console.log(JSON.stringify(storedCashbacks));
       if (storedCashbacks) setCashbackGroups(JSON.parse(storedCashbacks));
     } catch (err) {
       console.error("Failed to load cashbacks:", err);
