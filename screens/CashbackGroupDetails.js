@@ -189,6 +189,14 @@ export default function CashbackGroupDetails({ route, navigation }) {
         <View>
           <TextInput
             ref={inputRef}
+            value={tranName}
+            onChangeText={setTranName}
+            placeholder="Name"
+            placeholderTextColor="#888"
+            style={styles.input}
+          />
+          <TextInput
+            ref={inputRef}
             value={amount}
             onChangeText={setAmount}
             placeholder="Amount"
