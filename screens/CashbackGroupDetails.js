@@ -14,7 +14,7 @@ import Icon from "react-native-vector-icons/EvilIcons";
 
 export default function CashbackGroupDetails({ route, navigation }) {
   const { group, loadCashbackGroups } = route.params;
-
+  const [isAddingTransaction, setIsAddingTransaction] = useState(false);
   const [localGroup, setLocalGroup] = useState(group);
   const [transactions, setTransactions] = useState(group.transactions || []);
   const [amount, setAmount] = useState("");
@@ -185,49 +185,65 @@ export default function CashbackGroupDetails({ route, navigation }) {
       </Text>
       <Text style={styles.createdAt}>Cap: {localGroup?.groupCap || "oo"}</Text>
 
-      {/* Add transaction inputs */}
-      <TextInput
-        ref={inputRef}
-        value={tranName}
-        onChangeText={setTranName}
-        placeholder="Name"
-        placeholderTextColor="#888"
-        style={styles.input}
-      />
-      <TextInput
-        ref={inputRef}
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="Amount"
-        placeholderTextColor="#888"
-        keyboardType="numeric"
-        style={styles.input}
-      />
+      {isAddingTransaction ? (
+        <View>
+          <TextInput
+            ref={inputRef}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="Amount"
+            placeholderTextColor="#888"
+            keyboardType="numeric"
+            style={styles.input}
+          />
 
-      {/* Category picker */}
-      <View style={styles.categoriesRow}>
-        {localGroup.categories.map((c) => (
+          {/* Category picker */}
+          <View style={styles.categoriesRow}>
+            {localGroup.categories.map((c) => (
+              <TouchableOpacity
+                key={c.name}
+                onPress={() => setCategory(c.name)}
+                style={[
+                  styles.categoryButton,
+                  category === c.name && styles.selectedCategory,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    category === c.name && styles.selectedCategoryText,
+                  ]}
+                >
+                  {c.name + "(" + (c?.cap || "oo") + ")"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity
-            key={c.name}
-            onPress={() => setCategory(c.name)}
-            style={[
-              styles.categoryButton,
-              category === c.name && styles.selectedCategory,
-            ]}
+            style={styles.actionButton}
+            onPress={async () => {
+              await addTransaction();
+              setIsAddingTransaction(false);
+            }}
           >
-            <Text
-              style={[
-                styles.categoryText,
-                category === c.name && styles.selectedCategoryText,
-              ]}
-            >
-              {c.name + "(" + (c?.cap || "oo") + ")"}
-            </Text>
+            <Text style={styles.actionButtonText}>Add Item</Text>
           </TouchableOpacity>
-        ))}
-      </View>
-
-      <Button title="Add Transaction" onPress={addTransaction} />
+          <TouchableOpacity
+            style={[styles.actionButton, styles.cancelButton]}
+            onPress={() => {
+              setAmount("");
+              setIsAddingTransaction(false);
+            }}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <Button
+          title="Add Transaction"
+          onPress={() => setIsAddingTransaction(true)}
+        />
+      )}
 
       {/* Transactions list */}
       <FlatList
@@ -349,5 +365,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#999",
     marginTop: 30,
+  },
+  actionButton: {
+    backgroundColor: "#007bff",
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  cancelButton: {
+    backgroundColor: "#ccc",
+  },
+  cancelButtonText: {
+    color: "#333",
   },
 });
