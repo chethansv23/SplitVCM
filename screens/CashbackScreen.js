@@ -1,7 +1,7 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   FlatList,
@@ -17,8 +17,8 @@ export default function CashbackScreen() {
 
   const loadCashbackGroups = async () => {
     try {
-      const storedCashbacks = await AsyncStorage.getItem("cashbacks");
-      // console.log(JSON.stringify(storedCashbacks));
+      const storedCashbacks = (await AsyncStorage.getItem("cashbacks")) || "[]";
+      console.log(JSON.stringify(storedCashbacks));
       if (storedCashbacks) setCashbackGroups(JSON.parse(storedCashbacks));
     } catch (err) {
       console.error("Failed to load cashbacks:", err);

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRef, useState } from "react";
 import {
+  Alert,
   Button,
   FlatList,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/EvilIcons";
 
-export default function CashbackGroupDetails({ route }) {
+export default function CashbackGroupDetails({ route, navigation }) {
   const { group, loadCashbackGroups } = route.params;
 
   const [transactions, setTransactions] = useState(group.transactions || []);
@@ -47,17 +48,20 @@ export default function CashbackGroupDetails({ route }) {
 
   const saveTransactions = async (updated, currentTotalCashback) => {
     setTransactions(updated);
-
     const stored = await AsyncStorage.getItem("cashbacks");
     const groups = stored ? JSON.parse(stored) : [];
     const updatedGroups = groups.map((g) =>
       g.id === group.id
-        ? { ...g, totalCashback: currentTotalCashback, transactions: updated }
+        ? {
+            ...g,
+            totalCashback: currentTotalCashback > 0 ? currentTotalCashback : 0,
+            transactions: updated,
+          }
         : g
     );
     await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
-    setTotalCashback(currentTotalCashback);
     await loadCashbackGroups();
+    setTotalCashback(currentTotalCashback);
   };
 
   const addTransaction = async () => {
@@ -76,15 +80,77 @@ export default function CashbackGroupDetails({ route }) {
     inputRef.current?.blur();
   };
 
+  const deleteGroup = async (id) => {
+    Alert.alert(
+      "Confirm Deletion",
+      `Are you sure you want to delete the group "${group.name}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "OK",
+          onPress: async () => {
+            try {
+              const storedGroupsString = await AsyncStorage.getItem(
+                "cashbacks"
+              );
+              const storedGroups = JSON.parse(storedGroupsString) || [];
+              const updatedGroups = storedGroups.filter((g) => g.id != id);
+              await AsyncStorage.setItem(
+                "cashbacks",
+                JSON.stringify(updatedGroups)
+              );
+              Alert.alert(
+                "Group Deleted",
+                "The group has been successfully deleted."
+              );
+              navigation.goBack();
+            } catch (error) {
+              console.error("Failed to delete group:", error);
+              Alert.alert(
+                "Error",
+                "An error occurred while deleting the group."
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
   const deleteTransaction = async (id) => {
     const tan = transactions.find((t) => t.id == id);
     const updated = transactions.filter((tx) => tx.id !== id);
+    const updatedCatgeoris = group.categories.map((g) =>
+      g.name === tan.category
+        ? {
+            ...g,
+            totalCashback:
+              g.totalCashback - tan.cashback > 0
+                ? g.totalCashback - tan.cashback
+                : 0,
+          }
+        : g
+    );
+    group.categories = updatedCatgeoris;
     await saveTransactions(updated, group.totalCashback - tan.cashback);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>{group.name}</Text>
+      <View style={styles.header}>
+        {/* Group Name */}
+        <Text style={styles.groupName}>{group.name}</Text>
+        <TouchableOpacity
+          style={styles.deleteGroupButton}
+          onPress={() => deleteGroup(group.id)}
+        >
+          <Icon name="close" size={30} color="#dc3545" />
+        </TouchableOpacity>
+      </View>
       <Text style={styles.total}>
         Total Cashback: <Text style={styles.totalAmount}>₹{totalCashback}</Text>
       </Text>
@@ -99,6 +165,7 @@ export default function CashbackGroupDetails({ route }) {
         value={amount}
         onChangeText={setAmount}
         placeholder="Amount"
+        placeholderTextColor="#888"
         keyboardType="numeric"
         style={styles.input}
       />
@@ -164,7 +231,21 @@ export default function CashbackGroupDetails({ route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  header: { fontSize: 22, fontWeight: "bold" },
+  header: {
+    flexDirection: "row", // Aligns items horizontally
+    alignItems: "center", // Centers the items vertically
+    marginBottom: 16, // Optional margin if you need spacing
+  },
+  groupName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  deleteGroupButton: {
+    position: "absolute",
+    top: 3,
+    right: 10,
+  },
   total: {
     fontSize: 18,
     marginVertical: 10,

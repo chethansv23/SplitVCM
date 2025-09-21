@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -36,7 +36,7 @@ export default function CreateCashbackGroup({ navigation }) {
         name: categoryName,
         percentage: parseFloat(percentage),
         cap: cap ? parseFloat(cap) : null,
-        totalCashback: 0
+        totalCashback: 0,
       },
     ]);
     setCategoryName("");
@@ -67,12 +67,15 @@ export default function CreateCashbackGroup({ navigation }) {
         value={groupName}
         onChangeText={setGroupName}
         placeholder="e.g. Credit Card A"
+        placeholderTextColor="#888"
       />
       <TextInput
         style={styles.input}
         value={groupCap}
         onChangeText={setGroupCap}
         placeholder="cap (optional)"
+        placeholderTextColor="#888"
+        keyboardType="numeric"
       />
 
       <Text style={styles.label}>Add Categories</Text>
@@ -81,12 +84,14 @@ export default function CreateCashbackGroup({ navigation }) {
         value={categoryName}
         onChangeText={setCategoryName}
         placeholder="Category name (e.g. Recharge)"
+        placeholderTextColor="#888"
       />
       <TextInput
         style={styles.input}
         value={percentage}
         onChangeText={setPercentage}
         placeholder="Percentage (e.g. 10)"
+        placeholderTextColor="#888"
         keyboardType="numeric"
       />
       <TextInput
@@ -94,6 +99,7 @@ export default function CreateCashbackGroup({ navigation }) {
         value={cap}
         onChangeText={setCap}
         placeholder="Cap (optional)"
+        placeholderTextColor="#888"
         keyboardType="numeric"
       />
       <Button title="Add Category" onPress={addCategory} />
