@@ -222,7 +222,12 @@ export default function CashbackGroupDetails({ route, navigation }) {
                     category === c.name && styles.selectedCategoryText,
                   ]}
                 >
-                  {c.name + "(" + (c?.cap || "oo") + ")"}
+                  {c.name +
+                    "(" +
+                    (c?.totalCashback || 0) +
+                    "/" +
+                    (c?.cap || "oo") +
+                    ")"}
                 </Text>
               </TouchableOpacity>
             ))}
