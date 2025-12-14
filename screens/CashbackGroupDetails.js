@@ -23,6 +23,12 @@ export default function CashbackGroupDetails({ route, navigation }) {
   const [totalCashback, setTotalCashback] = useState(group.totalCashback || 0);
   const inputRef = useRef(null);
 
+  // ✅ ONLY ADDITION
+  const totalSpent = transactions.reduce(
+    (sum, tx) => sum + (parseFloat(tx.amount) || 0),
+    0
+  );
+
   const getCashback = (amount, category) => {
     const cat = localGroup.categories.find((c) => c.name === category);
     if (!cat) return 0;
@@ -105,10 +111,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
       "Confirm Deletion",
       `Are you sure you want to delete the group "${localGroup.name}"?`,
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "OK",
           onPress: async () => {
@@ -167,7 +170,6 @@ export default function CashbackGroupDetails({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {/* Group Name */}
         <Text style={styles.groupName}>{localGroup.name}</Text>
         <TouchableOpacity
           style={styles.deleteGroupButton}
@@ -177,9 +179,15 @@ export default function CashbackGroupDetails({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* ✅ ONLY UI ADDITION */}
+      <Text style={styles.total}>
+        Total Spent: <Text style={styles.totalSpent}>₹{totalSpent}</Text>
+      </Text>
+
       <Text style={styles.total}>
         Total Cashback: <Text style={styles.totalAmount}>₹{totalCashback}</Text>
       </Text>
+
       <Text style={styles.createdAt}>
         Created On: {new Date(localGroup.id).toLocaleString()}
       </Text>
@@ -205,7 +213,6 @@ export default function CashbackGroupDetails({ route, navigation }) {
             style={styles.input}
           />
 
-          {/* Category picker */}
           <View style={styles.categoriesRow}>
             {localGroup.categories.map((c) => (
               <TouchableOpacity
@@ -232,6 +239,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
               </TouchableOpacity>
             ))}
           </View>
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={async () => {
@@ -241,6 +249,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
           >
             <Text style={styles.actionButtonText}>Add Item</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelButton]}
             onPress={() => {
@@ -258,7 +267,6 @@ export default function CashbackGroupDetails({ route, navigation }) {
         />
       )}
 
-      {/* Transactions list */}
       <FlatList
         data={transactions}
         keyExtractor={(item) => item.id.toString()}
@@ -296,35 +304,20 @@ export default function CashbackGroupDetails({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  groupName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  deleteGroupButton: {
-    position: "absolute",
-    top: 3,
-    right: 10,
-  },
-  total: {
-    fontSize: 18,
-    marginVertical: 10,
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  groupName: { fontSize: 18, fontWeight: "bold", color: "#333" },
+  deleteGroupButton: { position: "absolute", top: 3, right: 10 },
+  total: { fontSize: 18, marginVertical: 10, fontWeight: "bold" },
+  totalAmount: { color: "#28A745", fontWeight: "bold" },
+
+  // ✅ ONLY STYLE ADDITION
+  totalSpent: {
+    color: "#a7282eff",
     fontWeight: "bold",
   },
-  totalAmount: {
-    color: "#28A745",
-    fontWeight: "bold",
-  },
+
   createdAt: { fontSize: 16, marginVertical: 4, color: "#555" },
-  deleteButton: {
-    padding: 0,
-    backgroundColor: "#fff",
-  },
+  deleteButton: { padding: 0, backgroundColor: "#fff" },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -345,16 +338,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  selectedCategory: {
-    backgroundColor: "#007BFF",
-  },
-  categoryText: {
-    color: "#007BFF",
-  },
-  selectedCategoryText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
+  selectedCategory: { backgroundColor: "#007BFF" },
+  categoryText: { color: "#007BFF" },
+  selectedCategoryText: { color: "#fff", fontWeight: "bold" },
   transactionItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -366,19 +352,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: "#f9f9f9",
   },
-  transactionDetails: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  transactionText: {
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#999",
-    marginTop: 30,
-  },
+  transactionDetails: { flex: 1, paddingRight: 10 },
+  transactionText: { fontSize: 14, marginBottom: 2 },
+  emptyText: { textAlign: "center", color: "#999", marginTop: 30 },
   actionButton: {
     backgroundColor: "#007bff",
     paddingVertical: 8,
@@ -386,15 +362,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignItems: "center",
   },
-  actionButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  cancelButton: {
-    backgroundColor: "#ccc",
-  },
-  cancelButtonText: {
-    color: "#333",
-  },
+  actionButtonText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
+  cancelButton: { backgroundColor: "#ccc" },
+  cancelButtonText: { color: "#333" },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Modal,
   StyleSheet,
@@ -24,7 +24,7 @@ export default function InputModal({ visible, title, onSubmit, onCancel }) {
           />
           <View style={styles.row}>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: "#007bff" }]}
+              style={[styles.button, { backgroundColor: "#007BFf" }]}
               onPress={() => {
                 onSubmit(text);
                 setText("");

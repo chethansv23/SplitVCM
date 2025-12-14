@@ -55,7 +55,10 @@ export default function CashbackScreen() {
               <Text style={styles.groupName}>{item.name}</Text>
             </View>
             <Text style={styles.groupTotal}>
-              Total Cashback: ₹{item.totalCashback?.toFixed(0) || 0}
+              Total Cashback:{" "}
+              <Text style={styles.totalCashback}>
+                ₹{item.totalCashback?.toFixed(0) || 0}{" "}
+              </Text>
             </Text>
           </TouchableOpacity>
         )}
@@ -89,6 +92,9 @@ const styles = StyleSheet.create({
   },
   groupContent: { flexDirection: "row", alignItems: "center" },
   groupName: { fontSize: 16, fontWeight: "bold", marginLeft: 10 },
-  groupTotal: { marginTop: 4, color: "#28A745", fontWeight: "bold" },
+  groupTotal: { marginTop: 4, fontWeight: "bold" },
+  totalCashback: { color: "#28A745" },
+  totalSpent: { color: "#fe0000ff" },
+  groupSpent: { marginTop: 4, fontWeight: "bold" },
   emptyText: { textAlign: "center", marginTop: 50, color: "#999" },
 });

@@ -37,6 +37,7 @@ export default function CreateCashbackGroup({ navigation }) {
         percentage: parseFloat(percentage),
         cap: cap ? parseFloat(cap) : null,
         totalCashback: 0,
+        totalSpent: 0,
       },
     ]);
     setCategoryName("");

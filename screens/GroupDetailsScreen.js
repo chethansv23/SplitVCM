@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -211,13 +211,13 @@ export default function GroupDetailsScreen({ route, navigation }) {
           onPress={() =>
             Alert.alert("Details", JSON.stringify(paidBy, null, 2))
           }
-          color="#007bff"
+          color="#007BFf"
           style={styles.button}
         />
         <Button
           title="Settle"
           onPress={settleGroup}
-          color="#28a745"
+          color="#007BF"
           style={styles.button}
         />
       </View>
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   actionButton: {
-    backgroundColor: "#007bff",
+    backgroundColor: "#007BFf",
     paddingVertical: 8,
     borderRadius: 6,
     marginTop: 8,
