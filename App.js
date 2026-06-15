@@ -1,8 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import * as LocalAuthentication from "expo-local-authentication";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -12,18 +13,63 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import CreateGroupScreen from "./screens/CreateGroupScreen";
 import GroupDetailsScreen from "./screens/GroupDetailsScreen";
 import GroupsScreen from "./screens/GroupsScreen";
 
-const Stack = createStackNavigator();
+import CashbackGroupDetails from "./screens/CashbackGroupDetails";
+import CashbackGroupsScreen from "./screens/CashbackScreen";
+import CreateCashbackGroup from "./screens/CreateCashbackGroup";
 
+const Tab = createBottomTabNavigator();
+const GroupsStack = createStackNavigator();
+const CashbackStack = createStackNavigator();
+
+// Groups stack
+function GroupsStackScreen() {
+  return (
+    <GroupsStack.Navigator>
+      <GroupsStack.Screen
+        name="GroupsMain"
+        component={GroupsScreen}
+        options={{ title: "My Groups" }}
+      />
+      <GroupsStack.Screen name="Create Group" component={CreateGroupScreen} />
+      <GroupsStack.Screen name="Group Details" component={GroupDetailsScreen} />
+    </GroupsStack.Navigator>
+  );
+}
+
+// Cashback stack
+function CashbackStackScreen() {
+  return (
+    <CashbackStack.Navigator>
+      <CashbackStack.Screen
+        name="CashbackMain"
+        component={CashbackGroupsScreen}
+        options={{ title: "My Cashback" }}
+      />
+      <CashbackStack.Screen
+        name="CreateCashbackGroup"
+        component={CreateCashbackGroup}
+        options={{ title: "Create Cashback Group" }}
+      />
+      <CashbackStack.Screen
+        name="CashbackGroupDetails"
+        component={CashbackGroupDetails}
+        options={{ title: "Cashback Group Details" }}
+      />
+    </CashbackStack.Navigator>
+  );
+}
+
+// Main App
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pin, setPin] = useState("");
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
-
   useEffect(() => {
     const authenticate = async () => {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -69,7 +115,6 @@ export default function App() {
       </View>
     );
   }
-
   if (!isAuthenticated) {
     return (
       <View style={styles.error}>
@@ -77,15 +122,29 @@ export default function App() {
       </View>
     );
   }
-
   return (
     <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Groups" component={GroupsScreen} />
-        <Stack.Screen name="Create Group" component={CreateGroupScreen} />
-        <Stack.Screen name="Group Details" component={GroupDetailsScreen} />
-      </Stack.Navigator>
-
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          tabBarIcon: ({ color, size }) => {
+            let iconName;
+            if (route.name === "Groups") iconName = "people";
+            else if (route.name === "Cashback") iconName = "cash";
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+        })}
+      >
+        <Tab.Screen
+          name="Groups"
+          component={GroupsStackScreen}
+          options={{ headerShown: false }}
+        />
+        <Tab.Screen
+          name="Cashback"
+          component={CashbackStackScreen}
+          options={{ headerShown: false }}
+        />
+      </Tab.Navigator>
       {/* PIN Modal */}
       <Modal
         visible={isPinModalVisible}
