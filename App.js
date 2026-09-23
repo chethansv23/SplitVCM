@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -83,9 +84,13 @@ export default function App() {
           fallbackLabel: "Enter PIN",
         });
         setIsAuthenticated(authResult.success);
+        if (!authResult.success) {
+          setIsPinModalVisible(true);
+        }
       } else {
         // Prompt for PIN (stored in AsyncStorage)
-        const storedPin = (await AsyncStorage.getItem("userPin")) || 2305;
+        const storedPin =
+          (await AsyncStorage.getItem("userPin")) || "2305";
         if (storedPin) {
           setIsPinModalVisible(true); // Show PIN modal if PIN is stored
         }
@@ -97,7 +102,8 @@ export default function App() {
   }, []);
 
   const handlePinSubmit = async () => {
-    const storedPin = await AsyncStorage.getItem("userPin");
+    const storedPin =
+      (await AsyncStorage.getItem("userPin")) || "2305";
     if (pin === storedPin) {
       setIsAuthenticated(true);
       setIsPinModalVisible(false); // Hide PIN modal
@@ -115,7 +121,7 @@ export default function App() {
       </View>
     );
   }
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isPinModalVisible) {
     return (
       <View style={styles.error}>
         <Text>Authentication failed! Please restart the app.</Text>
