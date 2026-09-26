@@ -316,3 +316,14 @@ describe("fields show their values (dark-mode regression)", () => {
     expect(screen.getByLabelText("Category").props.accessibilityValue.text).toBe("1.5% other eligible (1.5%)");
   });
 });
+
+test("an alert from an unknown card offers a shortcut to set that card up", async () => {
+  const ctx = liveplusState();
+  const r = ingestNotification(ctx.state, {
+    text: "HSBC Credit Card xx7342 used at TATA 1MG HEALTHCARE for INR 867.00 on 26/09/26.",
+  }, NOW);
+  await seed(r.state);
+  await render(<ReviewInbox navigation={nav} />);
+  await fireEvent.press(await screen.findByText("Set up card •••• 7342"));
+  expect(nav.navigate).toHaveBeenCalledWith("CardTemplates", { cardLastFour: "7342" });
+});

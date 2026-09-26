@@ -28,7 +28,7 @@ export default function CashbackScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[ui.row, ui.gap]}>
+      <View style={[ui.row, ui.gap, { flexWrap: "wrap" }]}>
         <Btn small title="Cards & cycles" onPress={() => navigation.navigate("CardTemplates")} />
         <Btn
           small

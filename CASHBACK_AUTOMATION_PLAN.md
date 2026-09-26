@@ -346,7 +346,7 @@ Phases 1–3 are implemented; see the README for usage and tests.
 
 - **Phase 1**: done. The PIN is in SecureStore with no default, `allowBackup: false`, schema v1 migration (the original data is kept in `cashbacks_backup_v0`), `computeCycle` with cap pools and rounding, card templates and cycle groups, category protection, the transaction editor and move flow, JSON export/import.
 - **Phase 2**: done. Parser with fixtures, duplicate detection across sources, auto-assign vs review, the review inbox and prompt on app open, remembered merchant rules, creating a cycle group from the inbox, refund linking, and "Paste an alert to test".
-- **Phase 3**: code complete (`modules/notification-capture`) but **not yet built or tested on a device**. No Android toolchain was available on the machine it was written on. Verify with a development build and real alerts.
+- **Phase 3**: done and verified on a device. The development build and preview APK build on EAS, and a real HSBC SMS was captured from Google Messages into the review inbox.
 - **Phase 4**: not started, by design.
 
 Decisions taken where confirmations were still open (all can be changed in the app):
@@ -358,3 +358,12 @@ Decisions taken where confirmations were still open (all can be changed in the a
 - A merchant that matches an exclusion keyword goes to review. Once you remember a rule for it, later alerts are filed as 0% automatically.
 - Savings-account debits (alerts that mention an account but not a card) are dropped by default, so they don't fill the inbox. A UPI alert without a card suffix is matched to a UPI-enabled card only when the alert mentions a card. There is a setting to include account debits.
 - Two genuine identical spends on the same card within the duplicate window (10 minutes by default) are merged. The window can be changed in settings.
+
+### Changes after device testing (2026-09-26)
+
+- The native Android picker showed blank values in dark mode; replaced with an in-app dropdown.
+- HSBC wording "used at MERCHANT for INR 867.00" now parses the merchant correctly; date-only alerts show "(no time in alert)".
+- Manual groups can be linked to a card's last four digits and billing cycle ("Track this card automatically"), because alerts are matched through cards.
+- Alerts waiting in review are re-checked when a card or cycle is set up, and review items for an unknown card offer "Set up card •••• 1234".
+- Sideloaded APKs that read notifications are blocked by Google Play Protect's fraud protection in India; install with `adb install` from a computer, or temporarily turn off Play Protect scanning.
+- Tests: 323 in 24 files, about 96% line coverage.

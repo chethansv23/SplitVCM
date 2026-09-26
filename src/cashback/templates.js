@@ -1,5 +1,7 @@
 import { ROUNDING, withComputed } from "./compute";
 import { cycleForDate, cycleGroupName, isCycleConfigured } from "./cycles";
+import { toDateKey } from "./dates";
+import { ensureExcludedCategory } from "./groups";
 import { newId, slugify } from "./ids";
 
 // Built-in card catalogue. Rates and caps are starting values from the
@@ -280,4 +282,76 @@ export const applyTemplateToGroup = (template, group) => {
     rounding: template.rounding,
     rewardValue: template.rewardValue,
   });
+};
+
+export const isValidCardDigits = (digits) => /^\d{4}$/.test(digits || "");
+
+// Turns a manual group into a tracked card: creates a card from the group's
+// categories and caps, and makes the group that card's current cycle, so
+// alerts with these card digits are matched to it from now on.
+// Returns { state, template, range, outsideCycle } or throws with a message
+// the user can act on.
+export const trackGroupWithCard = (state, groupId, { cardLastFour, cycle }, now = new Date()) => {
+  const group = state.groups.find((g) => g.id === groupId);
+  if (!group) throw new Error("Group not found");
+  // A group whose card was deleted can be linked again.
+  if (group.templateId && state.templates.some((t) => t.id === group.templateId)) {
+    throw new Error("This group is already linked to a card.");
+  }
+  if (!isValidCardDigits(cardLastFour)) throw new Error("Enter the card's last four digits.");
+  if (!isCycleConfigured(cycle)) throw new Error("Enter the billing-cycle start day (1–31) or choose calendar month.");
+  const other = state.templates.find((t) => t.cardLastFour === cardLastFour);
+  if (other) throw new Error(`${other.name} already uses •••• ${cardLastFour}.`);
+
+  // Every card needs a 0% category for excluded spends.
+  const { group: ensured } = ensureExcludedCategory(group);
+  // Review suggests the default category for unknown merchants; old groups
+  // have none, so use the first normal category.
+  const firstNormal = ensured.categories.find((c) => !c.excluded);
+  const withExcluded =
+    ensured.categories.some((c) => c.isDefault) || !firstNormal
+      ? ensured
+      : { ...ensured, categories: ensured.categories.map((c) => (c === firstNormal ? { ...c, isDefault: true } : c)) };
+  const template = normaliseTemplate({
+    id: newId("card"),
+    name: group.name,
+    cardLastFour,
+    cycle,
+    categories: withExcluded.categories.map(({ totalCashback, totalSpent, ...c }) => ({
+      keywords: [],
+      mccNotes: "",
+      active: true,
+      excluded: false,
+      isDefault: false,
+      ...c,
+    })),
+    capPools: (withExcluded.capPools || []).map((p) => ({ ...p, categoryIds: [...p.categoryIds] })),
+    groupCap: withExcluded.groupCap ?? null,
+    rounding: withExcluded.rounding || ROUNDING.PER_TRANSACTION_FLOOR,
+    rewardValue: withExcluded.rewardValue ?? 1,
+    lastVerifiedAt: toDateKey(now),
+    notes: "Created from a manual cashback group. Add merchant keywords to categories, or use Remember in review, so alerts can be categorised.",
+  });
+  const range = cycleForDate(cycle, now);
+  const linked = withComputed({
+    ...withExcluded,
+    templateId: template.id,
+    cycleStart: range.start,
+    cycleEnd: range.end,
+    status: "open",
+  });
+  const outsideCycle = linked.transactions.filter((tx) => {
+    const day = tx.occurredAt ? toDateKey(tx.occurredAt) : null;
+    return day && (day < range.start || day > range.end);
+  }).length;
+  return {
+    state: {
+      ...state,
+      templates: [...state.templates, template],
+      groups: state.groups.map((g) => (g.id === groupId ? linked : g)),
+    },
+    template,
+    range,
+    outsideCycle,
+  };
 };

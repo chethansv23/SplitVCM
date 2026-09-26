@@ -195,3 +195,76 @@ describe("Expense groups (Split tab)", () => {
     expect(JSON.parse(await AsyncStorage.getItem("groups")).map((g) => g.name)).toEqual(["Other"]);
   });
 });
+
+describe("linking a manual group to its card", () => {
+  const TrackCardScreen = require("../cashback/TrackCardScreen").default;
+  const CreateCashbackGroup = require("../CreateCashbackGroup").default;
+  const manual = () => {
+    const { migrateGroupV0 } = require("../../src/cashback/migration");
+    return migrateGroupV0({ id: 1, name: "Bbb", categories: [{ name: "Vv", percentage: 10, cap: 250 }], transactions: [] });
+  };
+
+  test("a manual group says it is not linked and offers tracking", async () => {
+    const g = manual();
+    await seed({ groups: [g] });
+    await render(<CashbackGroupDetails route={{ params: { groupId: g.id } }} navigation={nav} />);
+    expect(await screen.findByText("Not linked to a card")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Track this card automatically"));
+    expect(nav.navigate).toHaveBeenCalledWith("TrackCard", { groupId: g.id });
+  });
+
+  test("Track Card validates, then links the group", async () => {
+    const g = manual();
+    await seed({ groups: [g] });
+    await render(<TrackCardScreen route={{ params: { groupId: g.id } }} navigation={nav} />);
+    await fireEvent.press(await screen.findByText("Start tracking"));
+    expect(alerts.last()).toMatchObject({ title: "Could not start tracking" });
+
+    await fireEvent.changeText(screen.getByLabelText("Card last four digits"), "73-42x");
+    expect(screen.getByLabelText("Card last four digits").props.value).toBe("7342");
+    await fireEvent.changeText(screen.getByLabelText(/^Cycle start day/), "10");
+    await fireEvent.press(screen.getByText("Start tracking"));
+    await waitFor(() => expect(alerts.last().title).toBe("Tracking started"));
+    expect(alerts.last().message).toMatch(/Alerts from •••• 7342/);
+    expect(nav.goBack).toHaveBeenCalled();
+    const s = await getState();
+    expect(s.templates[0]).toMatchObject({ name: "Bbb", cardLastFour: "7342" });
+    expect(s.groups[0].templateId).toBe(s.templates[0].id);
+  });
+
+  test("a linked group shows its card and digits", async () => {
+    const ctx = liveplusState();
+    await seed(ctx.state);
+    await render(<CashbackGroupDetails route={{ params: { groupId: ctx.group.id } }} navigation={nav} />);
+    expect(await screen.findByText("Card: HSBC Live+ •••• 5678")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Edit card"));
+    expect(nav.navigate).toHaveBeenCalledWith("TemplateEditor", { templateId: ctx.template.id });
+  });
+
+  test("creating a manual group with card digits tracks it from the start", async () => {
+    await seed({});
+    await render(<CreateCashbackGroup navigation={nav} />);
+    await fireEvent.changeText(screen.getByPlaceholderText("e.g. Credit Card A"), "My HSBC");
+    await fireEvent.changeText(screen.getByPlaceholderText("Category name (e.g. Recharge)"), "Food");
+    await fireEvent.changeText(screen.getByPlaceholderText("Percentage (e.g. 10)"), "10");
+    await fireEvent.press(screen.getByText("Add Category"));
+    await fireEvent.changeText(screen.getByLabelText("Card last four digits"), "7342");
+    await fireEvent.press(screen.getByText("Calendar month"));
+    await fireEvent.press(screen.getByText("Create Group"));
+    await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
+    const s = await getState();
+    expect(s.templates[0]).toMatchObject({ name: "My HSBC", cardLastFour: "7342", cycle: { mode: "calendar-month" } });
+    expect(s.groups[0]).toMatchObject({ templateId: s.templates[0].id, status: "open" });
+  });
+
+  test("invalid card details on create save nothing", async () => {
+    await seed({});
+    await render(<CreateCashbackGroup navigation={nav} />);
+    await fireEvent.changeText(screen.getByPlaceholderText("e.g. Credit Card A"), "My HSBC");
+    await fireEvent.changeText(screen.getByLabelText("Card last four digits"), "73");
+    await fireEvent.press(screen.getByText("Create Group"));
+    expect(alerts.last()).toMatchObject({ title: "Check the card details" });
+    expect((await getState()).groups).toHaveLength(0);
+    expect(nav.goBack).not.toHaveBeenCalled();
+  });
+});

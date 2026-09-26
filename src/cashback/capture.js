@@ -1,5 +1,5 @@
 import NotificationCapture from "../../modules/notification-capture";
-import { applyRetention, ingestMany, pendingCandidates } from "./inbox";
+import { applyRetention, ingestMany, pendingCandidates, recheckPending } from "./inbox";
 import { getState, updateState, withResult } from "./store";
 
 // Pushes the capture settings to the native listener.
@@ -34,8 +34,9 @@ export const processCapturedNotifications = async (now = new Date()) => {
       })),
       now
     );
-    const retained = applyRetention(next, now);
-    return withResult(retained, summary);
+    const rechecked = recheckPending(next, now);
+    const retained = applyRetention(rechecked.state, now);
+    return withResult(retained, { ...summary, assigned: summary.assigned + rechecked.assigned });
   });
   const state = await getState();
   return { ...summary, fromQueue: raws.length, pending: pendingCandidates(state).length };
@@ -46,4 +47,11 @@ export const ingestPastedAlert = (text, sourceApp = null, now = new Date()) =>
   updateState((state) => {
     const { state: next, summary } = ingestMany(state, [{ text, sourceApp, postedAt: now.toISOString() }], now);
     return withResult(next, summary);
+  });
+
+// Call after changing cards or cycles, so waiting alerts are re-checked.
+export const recheckReview = (now = new Date()) =>
+  updateState((state) => {
+    const r = recheckPending(state, now);
+    return withResult(r.state, r.assigned);
   });

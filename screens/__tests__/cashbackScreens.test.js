@@ -69,7 +69,8 @@ test("group details renders computed totals and categories", async () => {
   expect(await screen.findByText("HSBC Live+ · 10 Sep–09 Oct 2026")).toBeTruthy();
   expect(screen.getByText("₹89")).toBeTruthy();
   expect(screen.getByText(/Accelerated 10% cap: ₹911 of ₹1000 remaining/)).toBeTruthy();
-  expect(screen.getByText(/auto/)).toBeTruthy();
+  expect(screen.getByText(/· auto$/)).toBeTruthy();
+  expect(screen.getByText("Card: HSBC Live+ •••• 5678")).toBeTruthy();
 });
 
 test("manual group: categories can be edited and deleted before saving", async () => {

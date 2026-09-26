@@ -190,3 +190,35 @@ describe("TemplateEditor", () => {
     jest.useRealTimers();
   });
 });
+
+describe("setting up a card from a review item", () => {
+  test("Cards & cycles opened with digits fills them in and adds waiting alerts once the cycle exists", async () => {
+    const { ingestNotification: ingest } = require("../../src/cashback/inbox");
+    const alert = {
+      text: "HSBC Credit Card xx7342 used at BIGBASKET for INR 899.00 on 26/09/26 at 14:10.",
+      sourceApp: "com.google.android.apps.messaging",
+    };
+    const r = ingest({ groups: [], templates: [], candidates: [], settings: {} }, alert, NOW);
+    await seed(r.state);
+    await render(<CardTemplatesScreen navigation={mockNav} route={{ params: { cardLastFour: "7342" } }} />);
+    expect(await screen.findByText(/An alert came from a card ending 7342/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByText("HSBC Live+"));
+    await fireEvent.press(screen.getByText("Add HSBC Live+"));
+    await waitFor(async () => expect((await getState()).templates[0]?.cardLastFour).toBe("7342"));
+
+    await fireEvent.press(await screen.findByText("Create current cycle"));
+    await waitFor(() => expect(alerts.last()?.title).toBe("Waiting alerts added"));
+    const s = await getState();
+    expect(s.groups[0].transactions[0]).toMatchObject({ name: "BIGBASKET", assignmentMode: "automatic" });
+    expect(s.candidates[0].status).toBe("assigned");
+  });
+
+  test("an existing card without digits offers to use them", async () => {
+    const t = buildTemplate("hsbc-live-plus", {}, NOW);
+    await seed({ templates: [t] });
+    await render(<CardTemplatesScreen navigation={mockNav} route={{ params: { cardLastFour: "7342" } }} />);
+    await fireEvent.press(await screen.findByText("Use •••• 7342"));
+    await waitFor(async () => expect((await getState()).templates[0].cardLastFour).toBe("7342"));
+  });
+});

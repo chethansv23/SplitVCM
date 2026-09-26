@@ -27,6 +27,7 @@ import CardTemplatesScreen from "./screens/cashback/CardTemplatesScreen";
 import CategoryEditor from "./screens/cashback/CategoryEditor";
 import ReviewInbox from "./screens/cashback/ReviewInbox";
 import TemplateEditor from "./screens/cashback/TemplateEditor";
+import TrackCardScreen from "./screens/cashback/TrackCardScreen";
 import TransactionEditor from "./screens/cashback/TransactionEditor";
 
 import { hasPin, setPin, validatePinSetup, verifyPin } from "./src/auth/pin";
@@ -79,6 +80,7 @@ function CashbackStackScreen() {
       <CashbackStack.Screen name="CardTemplates" component={CardTemplatesScreen} options={{ title: "Cards & Cycles" }} />
       <CashbackStack.Screen name="TemplateEditor" component={TemplateEditor} options={{ title: "Card" }} />
       <CashbackStack.Screen name="ReviewInbox" component={ReviewInbox} options={{ title: "Needs Review" }} />
+      <CashbackStack.Screen name="TrackCard" component={TrackCardScreen} options={{ title: "Track Card" }} />
       <CashbackStack.Screen name="CaptureSettings" component={CaptureSettings} options={{ title: "Capture & Privacy" }} />
     </CashbackStack.Navigator>
   );

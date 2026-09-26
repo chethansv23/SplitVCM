@@ -151,6 +151,41 @@ export const ingestMany = (state, raws, now = new Date()) => {
   return { state: next, summary };
 };
 
+// Re-runs the decision for alerts waiting in review, e.g. after the user
+// adds a card's digits or creates a cycle. Items that are now certain are
+// added automatically; the rest get fresh reasons and suggestions.
+export const recheckPending = (state, now = new Date()) => {
+  let next = state;
+  let assigned = 0;
+  for (const c of state.candidates) {
+    if (c.status !== PENDING || !c.parsed || c.reviewReasons?.includes("processing-error")) continue;
+    const decision = decideAssignment(c.parsed, next);
+    if (decision.decision === "auto") {
+      next = assignCandidate(next, c.id, {
+        groupId: decision.suggestion.groupId,
+        categoryId: decision.suggestion.categoryId,
+        mode: "automatic",
+        ruleId: decision.suggestion.ruleId,
+      }, now);
+      assigned += 1;
+    } else if (
+      decision.reasons.join() !== (c.reviewReasons || []).join() ||
+      decision.suggestion.groupId !== c.suggestedGroupId ||
+      decision.suggestion.categoryId !== c.suggestedCategoryId
+    ) {
+      next = setCandidate(next, {
+        ...c,
+        reviewReasons: decision.reasons,
+        suggestedTemplateId: decision.suggestion.templateId,
+        suggestedGroupId: decision.suggestion.groupId,
+        suggestedCategoryId: decision.suggestion.categoryId,
+        suggestedRuleId: decision.suggestion.ruleId,
+      });
+    }
+  }
+  return { state: next, assigned };
+};
+
 export const pendingCandidates = (state) =>
   state.candidates
     .filter((c) => c.status === PENDING)

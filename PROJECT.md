@@ -78,6 +78,12 @@ Cashback is **derived**: `computeCycle` sorts transactions by date and applies r
 
 Stored under `cardTemplates`. It has the same category, pool, and cap fields, plus `cardLastFour`, `upiEnabled`, `cycle` (`{ mode: "billing-cycle", startDay }` or `{ mode: "calendar-month" }`), `merchantRules` (learned `merchantKey → categoryId`), `options` (variant or Prime), `notes`, `sourceLinks`, and `lastVerifiedAt`. A cycle group copies the template's category ids, so learned rules apply to every cycle.
 
+### Linking a manual group to a card
+
+Alerts are matched to **cards**, never directly to groups: the card's `cardLastFour` finds the card, and the alert's date finds that card's open group whose `cycleStart`–`cycleEnd` covers it. A manual group (`templateId: null`) therefore never receives alerts. `trackGroupWithCard` (in `templates.js`) turns a manual group into a card with the same categories and caps, and makes the group that card's current cycle. The group screen offers this as **Track this card automatically**; manual group creation offers it as optional fields.
+
+After any change to cards or cycles, `recheckPending` (in `inbox.js`, called through `recheckReview` in `capture.js`) re-runs the decision for alerts waiting in review, so alerts that arrived early are added once they are certain.
+
 ### Captured alert (candidate)
 
 Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText, receivedAt, parsed: { amount, merchant, cardLastFour, channel, vpa, occurredAt, direction, confidence }, suggestedTemplateId, suggestedGroupId, suggestedCategoryId, reviewReasons, status, duplicateSources, assignedGroupId, transactionId, resolvedAt }`. `status` is `pending-review`, `assigned`, `reviewed`, or `ignored`. `rawText` is cleared by retention.
@@ -95,4 +101,5 @@ Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText
 - Preserve the existing AsyncStorage keys. Changes to the cashback data shape need a new `CURRENT_SCHEMA_VERSION` and a migration in `src/cashback/migration.js`.
 - Keep cashback logic in `src/cashback/` pure (no React Native imports) and cover it with tests; screens should only call it.
 - Add real (anonymised) alert samples to the parser fixtures whenever a bank's wording isn't parsed.
+- Use `Select` from `components/cashback/ui.js` for choices, not the native Android picker: the native one follows the phone's dark mode and drew white text on white fields. Give text inputs an explicit text colour for the same reason.
 - Update this guide and the README when adding new screens, storage models, scripts, or setup requirements.

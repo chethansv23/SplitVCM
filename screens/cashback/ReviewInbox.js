@@ -24,7 +24,7 @@ const run = async (fn) => {
   }
 };
 
-function ReviewItem({ candidate, state, onSkip }) {
+function ReviewItem({ candidate, state, onSkip, navigation }) {
   const p = candidate.parsed;
   const [groupId, setGroupId] = useState(candidate.suggestedGroupId);
   const [categoryId, setCategoryId] = useState(candidate.suggestedCategoryId);
@@ -138,6 +138,14 @@ function ReviewItem({ candidate, state, onSkip }) {
       {candidate.reviewReasons.map((r) => (
         <Text key={r} style={{ color: "#b8860b", fontSize: 13 }}>• {REVIEW_REASONS[r] || r}</Text>
       ))}
+      {candidate.reviewReasons.includes("no-card-match") && p.cardLastFour ? (
+        <Btn
+          small
+          title={`Set up card •••• ${p.cardLastFour}`}
+          onPress={() => navigation.navigate("CardTemplates", { cardLastFour: p.cardLastFour })}
+          style={{ alignSelf: "flex-start", marginTop: 6 }}
+        />
+      ) : null}
       <TouchableOpacity onPress={() => setShowRaw(!showRaw)}>
         <Text style={{ color: "#007BFF", marginTop: 4 }}>{showRaw ? "Hide" : "Show"} original text</Text>
       </TouchableOpacity>
@@ -264,7 +272,12 @@ export default function ReviewInbox({ navigation }) {
         </>
       }
       renderItem={({ item }) => (
-        <ReviewItem candidate={item} state={state} onSkip={() => setSkipped((s) => [...s, item.id])} />
+        <ReviewItem
+          candidate={item}
+          state={state}
+          navigation={navigation}
+          onSkip={() => setSkipped((s) => [...s, item.id])}
+        />
       )}
       ListEmptyComponent={() => (
         <Text style={ui.empty}>{pending.length ? "All remaining items are skipped." : "Nothing to review. 🎉"}</Text>

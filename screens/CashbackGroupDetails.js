@@ -89,6 +89,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
       groups: s.groups.map((g) => (g.id === groupId ? { ...g, status: g.status === "closed" ? "open" : "closed" } : g)),
     }));
 
+  const card = group.templateId ? state.templates.find((t) => t.id === group.templateId) : null;
   const categoryName = (id) => group.categories.find((c) => c.id === id)?.name || "Uncategorised";
   const transactions = sortTransactions(group.transactions).reverse();
 
@@ -105,6 +106,42 @@ export default function CashbackGroupDetails({ route, navigation }) {
           Cycle {formatRange(group.cycleStart, group.cycleEnd)} · {group.status === "closed" ? "closed" : "open"}
         </Text>
       ) : null}
+
+      <View style={[ui.card, { marginTop: 12, marginBottom: 0 }]}>
+        {card ? (
+          <>
+            <Text style={ui.strong}>
+              Card: {card.name}
+              {card.cardLastFour ? ` •••• ${card.cardLastFour}` : ""}
+            </Text>
+            <Text style={ui.small}>
+              {card.cardLastFour
+                ? "Alerts from this card are added automatically."
+                : "Add the card's last four digits so its alerts can be matched."}
+            </Text>
+            <Btn
+              small
+              kind="secondary"
+              title="Edit card"
+              onPress={() => navigation.navigate("TemplateEditor", { templateId: card.id })}
+              style={{ alignSelf: "flex-start", marginTop: 8 }}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={ui.strong}>Not linked to a card</Text>
+            <Text style={ui.small}>
+              Alerts can't be added here automatically until the group is linked to its card's last four digits.
+            </Text>
+            <Btn
+              small
+              title="Track this card automatically"
+              onPress={() => navigation.navigate("TrackCard", { groupId })}
+              style={{ alignSelf: "flex-start", marginTop: 8 }}
+            />
+          </>
+        )}
+      </View>
 
       <Text style={styles.total}>
         Total Spent: <Text style={{ color: "#a7282e" }}>{money(result.totalSpent)}</Text>

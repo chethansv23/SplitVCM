@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import CardTrackingFields, { cycleFromFields, EMPTY_TRACKING } from "../components/cashback/CardTrackingFields";
 import { Btn, Field, ui } from "../components/cashback/ui";
+import { recheckReview } from "../src/cashback/capture";
 import { withComputed } from "../src/cashback/compute";
 import { newId } from "../src/cashback/ids";
 import { updateState } from "../src/cashback/store";
+import { trackGroupWithCard } from "../src/cashback/templates";
 
 // Manual (non-template) cashback group, as before. Every manual group also
 // gets a 0% / excluded category.
@@ -16,6 +19,7 @@ export default function CreateCashbackGroup({ navigation }) {
   const [percentage, setPercentage] = useState("");
   const [cap, setCap] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [tracked, setTracked] = useState(EMPTY_TRACKING);
 
   const clearForm = () => {
     setCategoryName("");
@@ -99,7 +103,20 @@ export default function CreateCashbackGroup({ navigation }) {
       transactions: [],
       createdAt: new Date().toISOString(),
     });
-    await updateState((s) => ({ ...s, groups: [...s.groups, group] }));
+    const tracking = tracked.digits !== "";
+    try {
+      await updateState((s) => {
+        const next = { ...s, groups: [...s.groups, group] };
+        // Optional: link the new group to its card so alerts are added
+        // automatically. Throws (saving nothing) if the details are invalid.
+        return tracking
+          ? trackGroupWithCard(next, group.id, { cardLastFour: tracked.digits, cycle: cycleFromFields(tracked) }).state
+          : next;
+      });
+    } catch (e) {
+      return Alert.alert("Check the card details", e.message);
+    }
+    if (tracking) await recheckReview();
     navigation.goBack();
   };
 
@@ -138,6 +155,13 @@ export default function CreateCashbackGroup({ navigation }) {
         ))}
         <Text style={ui.small}>A "0% / excluded" category is added automatically.</Text>
       </View>
+
+      <CardTrackingFields
+        value={tracked}
+        onChange={setTracked}
+        title="Track this card automatically (optional)"
+      />
+      <Text style={ui.small}>Leave the digits blank to keep this a manual-only group.</Text>
 
       <Btn title="Create Group" kind="success" onPress={createGroup} />
     </ScrollView>

@@ -3,6 +3,7 @@ import { Alert, Linking, ScrollView, Text, TouchableOpacity, View } from "react-
 
 import { Banner, Btn, Chips, Field, Section, Toggle, ui } from "../../components/cashback/ui";
 import { ROUNDING } from "../../src/cashback/compute";
+import { recheckReview } from "../../src/cashback/capture";
 import { newId } from "../../src/cashback/ids";
 import { updateState, useCashbackState } from "../../src/cashback/store";
 import { applyTemplateToGroup } from "../../src/cashback/templates";
@@ -52,6 +53,8 @@ export default function TemplateEditor({ route, navigation }) {
       groupCap: numOrNull(groupCap),
       rewardValue: numOrNull(rewardValue) ?? 1,
     }));
+    // New digits or cycle settings can make waiting alerts certain.
+    await recheckReview();
     Alert.alert("Saved", openGroups.length ? "Use \"Apply to open cycles\" to update existing cycle groups." : undefined);
   };
 

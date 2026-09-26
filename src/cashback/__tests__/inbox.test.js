@@ -10,6 +10,7 @@ import {
   ingestNotification,
   linkRefund,
   pendingCandidates,
+  recheckPending,
 } from "../inbox";
 import { hsbcAlert, liveplusState, NOW } from "./helpers";
 
@@ -224,5 +225,61 @@ describe("review fixes", () => {
     expect(pendingCandidates(next)[0]).toMatchObject({ reviewReasons: ["processing-error"] });
     expect(pendingCandidates(next)[0].rawText).toContain("BIGBASKET");
     warn.mockRestore();
+  });
+});
+
+describe("recheckPending: alerts that arrived before the card was set up", () => {
+  const TATA = {
+    text: "HSBC Credit Card xx7342 used at TATA 1MG HEALTHCARE for INR 867.00 on 26/09/26 at 14:10. Avl limit INR 150000.00",
+    sourceApp: "com.google.android.apps.messaging",
+  };
+
+  test("adding the card digits moves a waiting alert into its cycle automatically", () => {
+    const { state } = liveplusState();
+    const noDigits = { ...state, templates: [{ ...state.templates[0], cardLastFour: "" }] };
+    const r = ingestNotification(noDigits, TATA, NOW);
+    expect(pendingCandidates(r.state)[0].reviewReasons).toContain("no-card-match");
+
+    // 1mg is not a keyword yet, so it stays in review, now with a card and group suggested.
+    const withDigits = { ...r.state, templates: [{ ...r.state.templates[0], cardLastFour: "7342" }] };
+    let { state: after, assigned } = recheckPending(withDigits, NOW);
+    expect(assigned).toBe(0);
+    expect(pendingCandidates(after)[0]).toMatchObject({
+      reviewReasons: ["unknown-merchant"],
+      suggestedGroupId: state.groups[0].id,
+    });
+
+    // Once 1mg is linked to a category, a re-check adds it without asking.
+    after = { ...after, templates: [{ ...after.templates[0], merchantRules: [{ id: "r", merchantKey: "tata1mghealthcare", categoryId: "other-1-5" }] }] };
+    ({ state: after, assigned } = recheckPending(after, NOW));
+    expect(assigned).toBe(1);
+    expect(pendingCandidates(after)).toHaveLength(0);
+    expect(after.groups[0].transactions[0]).toMatchObject({ name: "TATA 1MG HEALTHCARE", amount: 867, assignmentMode: "automatic" });
+  });
+
+  test("creating the missing cycle moves a clear alert in", () => {
+    const ctx = liveplusState();
+    const r = ingestNotification(ctx.state, hsbcAlert("BIGBASKET", 899, "14 Oct 2026 at 18:05"), NOW);
+    expect(pendingCandidates(r.state)[0].reviewReasons).toEqual(["no-open-cycle"]);
+    const october = require("../templates").createCycleGroup(ctx.template, "2026-10-14", NOW);
+    const { state: after, assigned } = recheckPending({ ...r.state, groups: [...r.state.groups, october] }, NOW);
+    expect(assigned).toBe(1);
+    expect(after.groups[1].totalCashback).toBe(89);
+  });
+
+  test("nothing changes when nothing new is known (same object back)", () => {
+    const { state } = liveplusState();
+    const r = ingestNotification(state, hsbcAlert("BOUTIQUE"), NOW);
+    const out = recheckPending(r.state, NOW);
+    expect(out.assigned).toBe(0);
+    expect(out.state).toBe(r.state);
+  });
+
+  test("ignored, reviewed and unreadable alerts are left alone", () => {
+    const { state } = liveplusState();
+    const r = ingestNotification(state, hsbcAlert("BIGBASKET", 899, "14 Oct 2026 at 18:05"), NOW);
+    const ignored = ignoreCandidate(r.state, r.candidateId, NOW);
+    const october = require("../templates").createCycleGroup(state.templates[0], "2026-10-14", NOW);
+    expect(recheckPending({ ...ignored, groups: [...ignored.groups, october] }, NOW).assigned).toBe(0);
   });
 });
