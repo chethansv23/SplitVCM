@@ -76,3 +76,42 @@ describe("parseNotification — edge cases", () => {
     expect(merchantFromVpa("localshop123@ybl")).toBe("localshop");
   });
 });
+
+describe("review fixes", () => {
+  test('a transaction ending "Never share your OTP" is kept', () => {
+    const p = parseNotification({
+      text: "Rs.450.00 spent on HDFC Bank Card x1234 at ZOMATO on 2026-09-20:13:05:00. Never share your OTP with anyone. Call 18002586161",
+      postedAt: POSTED,
+    });
+    expect(p.kind).toBe("debit");
+    expect(p.merchant).toBe("ZOMATO");
+  });
+
+  test.each([
+    "482913 is your OTP for txn of Rs 999 at AMAZON on card XX1234",
+    "OTP is 4829 for your transaction of Rs.999 at AMAZON",
+    "Use verification code 99812 to complete payment of INR 120",
+  ])("OTP deliveries are ignored: %s", (text) => {
+    expect(parseNotification({ text, postedAt: POSTED }).ignoreReason).toBe("otp");
+  });
+
+  test("HDFC-style 2026-09-23:10:30:00 reads 10:30, not 23:10", () => {
+    const p = parseNotification({
+      text: "Rs.1,250.00 spent on HDFC Bank Card x1234 at SWIGGY on 2026-09-23:10:30:00",
+      postedAt: POSTED,
+    });
+    const d = new Date(p.occurredAt);
+    expect([d.getHours(), d.getMinutes()]).toEqual([10, 30]);
+    expect(p.timeFromText).toBe(true);
+  });
+
+  test("a time is not taken from inside a date like 23-09-26", () => {
+    const d = extractDate("spent on 23-09-26 at STORE");
+    expect([d.getDate(), d.getHours(), d.getMinutes()]).toEqual([23, 0, 0]);
+  });
+
+  test("date-only alerts are flagged as having no time", () => {
+    const p = parseNotification({ text: "INR 450.50 spent on Axis Bank Card XX4321 on 13-09-26 at ZOMATO.", postedAt: POSTED });
+    expect(p).toMatchObject({ dateFromText: true, timeFromText: false });
+  });
+});

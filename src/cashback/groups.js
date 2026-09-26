@@ -9,6 +9,18 @@ const replaceGroup = (groups, group) => groups.map((g) => (g.id === group.id ? g
 
 export const getGroup = (groups, id) => groups.find((g) => g.id === id);
 
+const requireGroup = (groups, id) => {
+  const group = getGroup(groups, id);
+  if (!group) throw new Error("Group not found");
+  return group;
+};
+
+const requireTransaction = (group, txId) => {
+  const tx = group.transactions.find((t) => t.id === txId);
+  if (!tx) throw new Error("Transaction not found");
+  return tx;
+};
+
 export const isOutsideCycle = (group, occurredAt) =>
   Boolean(group.cycleStart && group.cycleEnd && occurredAt) &&
   !isDateKeyInRange(toDateKey(occurredAt), group.cycleStart, group.cycleEnd);
@@ -29,15 +41,19 @@ export const makeTransaction = (fields) => ({
 });
 
 export const addTransaction = (groups, groupId, fields) => {
-  const group = getGroup(groups, groupId);
-  if (!group) throw new Error("Group not found");
+  const group = requireGroup(groups, groupId);
+  if (!Number.isFinite(Number(fields.amount))) throw new Error("Enter a valid amount");
   const tx = makeTransaction(fields);
   const updated = withComputed({ ...group, transactions: [...group.transactions, tx] });
   return { groups: replaceGroup(groups, updated), transaction: tx };
 };
 
 export const updateTransaction = (groups, groupId, txId, patch) => {
-  const group = getGroup(groups, groupId);
+  const group = requireGroup(groups, groupId);
+  requireTransaction(group, txId);
+  if (patch.amount !== undefined && !Number.isFinite(Number(patch.amount))) {
+    throw new Error("Enter a valid amount");
+  }
   const transactions = group.transactions.map((tx) =>
     tx.id === txId
       ? { ...tx, ...patch, ...(patch.amount !== undefined ? { amount: Number(patch.amount) } : {}) }
@@ -47,7 +63,7 @@ export const updateTransaction = (groups, groupId, txId, patch) => {
 };
 
 export const deleteTransaction = (groups, groupId, txId) => {
-  const group = getGroup(groups, groupId);
+  const group = requireGroup(groups, groupId);
   const transactions = group.transactions.filter((tx) => tx.id !== txId);
   return replaceGroup(groups, withComputed({ ...group, transactions }));
 };
@@ -58,10 +74,9 @@ export const moveTransaction = (groups, fromGroupId, txId, toGroupId, toCategory
   if (fromGroupId === toGroupId) {
     return updateTransaction(groups, fromGroupId, txId, { ...patch, categoryId: toCategoryId });
   }
-  const from = getGroup(groups, fromGroupId);
-  const to = getGroup(groups, toGroupId);
-  if (!from || !to) throw new Error("Group not found");
-  const tx = from.transactions.find((t) => t.id === txId);
+  const from = requireGroup(groups, fromGroupId);
+  const to = requireGroup(groups, toGroupId);
+  const tx = requireTransaction(from, txId);
   if (!to.categories.some((c) => c.id === toCategoryId)) {
     throw new Error("Choose a category in the destination group");
   }

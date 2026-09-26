@@ -71,3 +71,37 @@ test("group details renders computed totals and categories", async () => {
   expect(screen.getByText(/Accelerated 10% cap: ₹911 of ₹1000 remaining/)).toBeTruthy();
   expect(screen.getByText(/auto/)).toBeTruthy();
 });
+
+test("manual group: categories can be edited and deleted before saving", async () => {
+  const CreateCashbackGroup = require("../CreateCashbackGroup").default;
+  const { Alert } = require("react-native");
+  // Auto-confirm the delete dialog.
+  jest.spyOn(Alert, "alert").mockImplementation((_t, _m, buttons) => buttons?.find((b) => b.style === "destructive")?.onPress());
+  await seed({ groups: [], templates: [], candidates: [] });
+  const nav = { goBack: jest.fn() };
+
+  await render(<CreateCashbackGroup navigation={nav} />);
+  await fireEvent.changeText(screen.getByPlaceholderText("e.g. Credit Card A"), "Card A");
+  const addCat = async (name, pct) => {
+    await fireEvent.changeText(screen.getByPlaceholderText("Category name (e.g. Recharge)"), name);
+    await fireEvent.changeText(screen.getByPlaceholderText("Percentage (e.g. 10)"), pct);
+    await fireEvent.press(screen.getByText(/^(Add|Save) Category$/));
+  };
+  await addCat("Recharge", "10");
+  await addCat("Dining", "5");
+
+  await fireEvent.press(screen.getAllByText("Edit")[0]);
+  expect(screen.getByText("Edit Category")).toBeTruthy();
+  await fireEvent.changeText(screen.getByPlaceholderText("Percentage (e.g. 10)"), "12");
+  await fireEvent.press(screen.getByText("Save Category"));
+  expect(screen.getByText(/Recharge - 12%/)).toBeTruthy();
+
+  await fireEvent.press(screen.getAllByText("Delete")[1]);
+  expect(screen.queryByText(/Dining/)).toBeNull();
+
+  await fireEvent.press(screen.getByText("Create Group"));
+  await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
+  const [g] = (await getState()).groups;
+  expect(g.categories.map((c) => [c.name, c.percentage])).toEqual([["Recharge", 12], ["0% / excluded", 0]]);
+  Alert.alert.mockRestore();
+});

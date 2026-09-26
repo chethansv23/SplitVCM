@@ -40,7 +40,13 @@ export const ensureMigrated = async () => {
   const version = Number(await AsyncStorage.getItem(KEYS.schemaVersion)) || 0;
   if (version >= CURRENT_SCHEMA_VERSION) return { migrated: false };
   const raw = await AsyncStorage.getItem(KEYS.groups);
-  const groups = raw ? JSON.parse(raw) : [];
+  let groups = [];
+  try {
+    groups = raw ? JSON.parse(raw) : [];
+  } catch {
+    // Unreadable data: keep the raw text in the backup key, start empty.
+    groups = [];
+  }
   if (raw && !(await AsyncStorage.getItem(KEYS.backupV0))) {
     await AsyncStorage.setItem(KEYS.backupV0, raw);
   }
@@ -64,7 +70,16 @@ const load = async () => {
 
 export const getState = async () => {
   if (state) return state;
-  if (!loading) loading = load().then((s) => (state = s));
+  if (!loading) {
+    loading = load().then(
+      (s) => (state = s),
+      (e) => {
+        // Let the next call retry instead of failing forever.
+        loading = null;
+        throw e;
+      }
+    );
+  }
   return loading;
 };
 

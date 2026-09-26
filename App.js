@@ -120,11 +120,13 @@ export default function App() {
   // After unlocking, and whenever the app returns to the foreground: pull
   // captured alerts from the native queue, auto-assign clear ones, and ask
   // about the rest. The prompt never blocks the app.
-  const syncCaptured = useCallback(async () => {
+  // The prompt shows once when the app opens, then again only when new
+  // alerts arrive that need review (not on every return from settings).
+  const syncCaptured = useCallback(async (onOpen) => {
     try {
       await syncCaptureConfig();
-      const { pending } = await processCapturedNotifications();
-      setReviewCount(pending);
+      const { pending, review } = await processCapturedNotifications();
+      if (pending > 0 && (onOpen || review > 0)) setReviewCount(pending);
     } catch (e) {
       console.warn("Capture sync failed", e);
     }
@@ -132,8 +134,8 @@ export default function App() {
 
   useEffect(() => {
     if (phase !== "unlocked") return;
-    syncCaptured();
-    const sub = AppState.addEventListener("change", (s) => s === "active" && syncCaptured());
+    syncCaptured(true);
+    const sub = AppState.addEventListener("change", (s) => s === "active" && syncCaptured(false));
     return () => sub.remove();
   }, [phase, syncCaptured]);
 

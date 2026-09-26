@@ -109,13 +109,44 @@ export const ingestNotification = (state, raw, now = new Date()) => {
   return { state: next, outcome: "review", candidateId: candidate.id };
 };
 
+// The native queue is already cleared when this runs, so an alert that
+// cannot be processed is kept for manual review rather than lost.
+const unprocessedCandidate = (raw, now) => ({
+  id: newId("cand"),
+  fingerprint: null,
+  source: sourceKind(raw.sourceApp),
+  sourceApp: raw.sourceApp || null,
+  rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
+  receivedAt: now.toISOString(),
+  parsed: {
+    kind: "debit", direction: "debit", amount: null, merchant: null, cardLastFour: null,
+    channel: "card", vpa: null, occurredAt: raw.postedAt || now.toISOString(),
+    dateFromText: false, timeFromText: false, confidence: "low",
+  },
+  suggestedTemplateId: null,
+  suggestedGroupId: null,
+  suggestedCategoryId: null,
+  suggestedRuleId: null,
+  reviewReasons: ["processing-error"],
+  confidence: "low",
+  status: PENDING,
+  duplicateSources: [],
+  resolvedAt: null,
+});
+
 export const ingestMany = (state, raws, now = new Date()) => {
   const summary = { assigned: 0, review: 0, duplicate: 0, ignored: 0 };
   let next = state;
   for (const raw of raws) {
-    const result = ingestNotification(next, raw, now);
-    next = result.state;
-    summary[result.outcome] += 1;
+    try {
+      const result = ingestNotification(next, raw, now);
+      next = result.state;
+      summary[result.outcome] += 1;
+    } catch (e) {
+      console.warn("Could not process a captured alert", e);
+      next = { ...next, candidates: [...next.candidates, unprocessedCandidate(raw, now)] };
+      summary.review += 1;
+    }
   }
   return { state: next, summary };
 };
@@ -130,8 +161,7 @@ export const pendingCandidates = (state) =>
 // Saves a candidate as a transaction. `overrides` may change merchant,
 // amount, or occurredAt ("Edit and add").
 export const assignCandidate = (state, candidateId, options, now = new Date()) => {
-  const candidate = state.candidates.find((c) => c.id === candidateId);
-  if (!candidate) throw new Error("Candidate not found");
+  const candidate = requireCandidate(state, candidateId);
   const { groupId, categoryId, overrides = {}, mode = "reviewed", ruleId = null, rememberRule = false } = options;
   const group = getGroup(state.groups, groupId);
   if (!group) throw new Error("Choose a cashback group");
@@ -198,16 +228,23 @@ export const assignNoCashback = (state, candidateId, groupId, now = new Date()) 
   return assignCandidate({ ...state, groups }, candidateId, { groupId, categoryId }, now);
 };
 
-export const ignoreCandidate = (state, candidateId, now = new Date()) => {
+const requireCandidate = (state, candidateId) => {
   const candidate = state.candidates.find((c) => c.id === candidateId);
+  if (!candidate) throw new Error("Candidate not found");
+  return candidate;
+};
+
+export const ignoreCandidate = (state, candidateId, now = new Date()) => {
+  const candidate = requireCandidate(state, candidateId);
   return setCandidate(state, { ...candidate, status: "ignored", resolvedAt: now.toISOString() });
 };
 
 // Creates the cycle group that the candidate's date falls in, then
 // re-points the suggestion at it.
 export const createGroupForCandidate = (state, candidateId, templateId, now = new Date()) => {
-  const candidate = state.candidates.find((c) => c.id === candidateId);
+  const candidate = requireCandidate(state, candidateId);
   const template = state.templates.find((t) => t.id === templateId);
+  if (!template) throw new Error("Card not found");
   const range = cycleForDate(template.cycle, candidate.parsed.occurredAt);
   let group = range && findCycleGroup(state.groups, templateId, range);
   let groups = state.groups;
@@ -227,9 +264,11 @@ export const createGroupForCandidate = (state, candidateId, templateId, now = ne
 
 // Stores a credit as a negative transaction against the original spend.
 export const linkRefund = (state, candidateId, groupId, originalTxId, now = new Date()) => {
-  const candidate = state.candidates.find((c) => c.id === candidateId);
+  const candidate = requireCandidate(state, candidateId);
   const group = getGroup(state.groups, groupId);
-  const original = group.transactions.find((t) => t.id === originalTxId);
+  const original = group?.transactions.find((t) => t.id === originalTxId);
+  if (!original) throw new Error("Choose the original transaction");
+  if (original.amount <= 0) throw new Error("A refund can only be linked to a spend");
   const amount = Math.min(candidate.parsed.amount ?? original.amount, original.amount);
   const { groups, transaction } = addTransaction(state.groups, groupId, {
     name: `Refund: ${original.name}`,
@@ -259,14 +298,20 @@ const DAY = 24 * 60 * 60 * 1000;
 export const applyRetention = (state, now = new Date()) => {
   const settings = { ...DEFAULT_SETTINGS, ...state.settings };
   const candidates = [];
+  let changed = false;
   for (const c of state.candidates) {
     if (c.status === PENDING || !c.resolvedAt) {
       candidates.push(c);
       continue;
     }
     const age = now - new Date(c.resolvedAt);
-    if (age > settings.candidateRetentionDays * DAY) continue;
-    if (age > settings.rawTextRetentionDays * DAY && (c.rawText || c.duplicateSources?.length)) {
+    if (age > settings.candidateRetentionDays * DAY) {
+      changed = true;
+      continue;
+    }
+    const hasText = c.rawText || (c.duplicateSources || []).some((d) => d.rawText);
+    if (age > settings.rawTextRetentionDays * DAY && hasText) {
+      changed = true;
       candidates.push({
         ...c,
         rawText: null,
@@ -276,7 +321,8 @@ export const applyRetention = (state, now = new Date()) => {
       candidates.push(c);
     }
   }
-  return { ...state, candidates };
+  // Unchanged state keeps its identity, so nothing is re-saved.
+  return changed ? { ...state, candidates } : state;
 };
 
 export const deleteAllCapturedText = (state) => ({

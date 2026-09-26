@@ -18,6 +18,7 @@ export const REVIEW_REASONS = {
   "excluded-category": "Matches an excluded (0%) rule",
   "unknown-rate": "Category rate is not set",
   "possible-duplicate": "Looks like a transaction you already entered",
+  "processing-error": "Could not be read automatically — check the original text",
 };
 
 export const findCardTemplates = (templates, parsed) => {

@@ -25,7 +25,9 @@ const MASKED_RE = /(?:xx+|\*{2,})\s*(\d{4})\b/i;
 const VPA_RE = /\b([a-z0-9][a-z0-9.\-_]{1,}@[a-z][a-z0-9]{1,})\b(?!\.[a-z])/i;
 
 const IGNORE_RULES = [
-  ["otp", /\b(otp|one[\s-]time\s+password|verification\s+code)\b/i],
+  // An OTP delivery has the code next to the word. Transaction alerts often
+  // end with "Never share your OTP", which must not match.
+  ["otp", /\b\d{4,8}\b[^.\n]{0,30}\b(otp|one[\s-]time\s+password|verification\s+code)\b|\b(otp|one[\s-]time\s+password|verification\s+code)\b[^.\n\d]{0,20}\b\d{4,8}\b/i],
   ["failed", /\b(declined|failed|unsuccessful|could not be (?:processed|completed)|was not successful)\b/i],
   ["card-repayment", /\bpayment\s+(?:of\s+)?(?:rs\.?|inr|₹)?\s*[\d,.]+\s*(?:has been\s+)?received\b|\bthank you for (?:your )?payment\b/i],
   ["promotional", /\b(pre-?approved|apply now|offer valid|click here to|t&c apply|limited period)\b/i],
@@ -80,8 +82,21 @@ const buildDate = (y, mo, d, h = 0, mi = 0, s = 0) => {
   return date.getMonth() === mo && date.getDate() === d ? date : null;
 };
 
-export const extractDate = (text) => {
-  const time = /\b(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?\b/i.exec(text);
+const buildTime = (date, hasTime) => (date ? { date, hasTime } : null);
+
+// Returns { date, hasTime } or null. hasTime is false when the alert gives
+// only a date (the time is then midnight and not meaningful).
+export const extractDateTime = (text) => {
+  // "2026-09-23:10:30:00" / "2026-09-23T10:30" / "2026-09-23 10:30"
+  let m = /\b(\d{4})-(\d{2})-(\d{2})(?:[:T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(text);
+  if (m) {
+    return buildTime(
+      buildDate(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)),
+      m[4] !== undefined
+    );
+  }
+  // A standalone time, not part of a date like 23-09-26 or 2026-09-23.
+  const time = /(?<![\d:\-/.])(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?\b/i.exec(text);
   let h = 0, mi = 0, s = 0;
   if (time) {
     h = +time[1];
@@ -91,16 +106,17 @@ export const extractDate = (text) => {
     if (ampm === "pm" && h < 12) h += 12;
     if (ampm === "am" && h === 12) h = 0;
   }
-  let m = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(text);
-  if (m) return buildDate(+m[1], +m[2] - 1, +m[3], h, mi, s);
+  const hasTime = Boolean(time);
   m = /\b(\d{1,2})[-/ ]([a-z]{3,4})[a-z]*[-/ ,]+(\d{2,4})\b/i.exec(text);
   if (m && MONTHS[m[2].toLowerCase()] !== undefined) {
-    return buildDate(+m[3], MONTHS[m[2].toLowerCase()], +m[1], h, mi, s);
+    return buildTime(buildDate(+m[3], MONTHS[m[2].toLowerCase()], +m[1], h, mi, s), hasTime);
   }
   m = /\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/.exec(text);
-  if (m) return buildDate(+m[3], +m[2] - 1, +m[1], h, mi, s);
+  if (m) return buildTime(buildDate(+m[3], +m[2] - 1, +m[1], h, mi, s), hasTime);
   return null;
 };
+
+export const extractDate = (text) => extractDateTime(text)?.date ?? null;
 
 // input: { text, title?, sourceApp?, postedAt?, includeCashWithdrawals?, includeBankAccountDebits? }
 export const parseNotification = (input) => {
@@ -155,7 +171,8 @@ export const parseNotification = (input) => {
     if (!merchant || merchant.toLowerCase().includes(vpa)) merchant = merchantFromVpa(vpa);
   }
 
-  const textDate = extractDate(text);
+  const found = extractDateTime(text);
+  const textDate = found?.date ?? null;
   const postedAt = input.postedAt ? new Date(input.postedAt) : new Date();
   const occurredAt = (textDate || postedAt).toISOString();
 
@@ -178,6 +195,7 @@ export const parseNotification = (input) => {
     accountType,
     occurredAt,
     dateFromText: Boolean(textDate),
+    timeFromText: Boolean(found?.hasTime),
     confidence,
   };
 };

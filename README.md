@@ -150,17 +150,29 @@ The suites cover:
 
 | Suite | What it checks |
 | --- | --- |
-| `src/cashback/__tests__/parser.test.js` | Sample alerts per bank (`__tests__/fixtures/alerts.js`), ignored message types, date formats, UPI handles |
+| `src/cashback/__tests__/parser.test.js` | Sample alerts per bank (`__tests__/fixtures/alerts.js`), ignored message types (OTP, failed, bill payment, cashback posting, bank-account debit), date and time formats, UPI handles |
 | `cycles.test.js` | Billing and calendar cycles, start days 29–31, year boundaries, IST midnight |
 | `compute.test.js` | Rates, category caps, cap pools, group cap, refunds, rounding modes, arrival order |
 | `matcher.test.js` | Auto-assign vs each review reason, learned rules, UPI matching |
-| `inbox.test.js` | Capture pipeline, duplicates across sources, all review actions, retention |
+| `inbox.test.js` | Capture pipeline, duplicates across sources (including date-only alerts), review actions, retention, failed-alert recovery |
 | `groups.test.js` | Edit, move, and delete with recalculation; category deletion protection |
-| `templates.test.js` | Card catalogue, variants, cycle groups, next-cycle offers |
+| `templates.test.js` | Card catalogue, variants, cycle groups, next-cycle offers, applying card edits |
 | `migration.test.js` | Upgrading data from the original app version, backup export and import |
-| `store.test.js` | One-time migration, serialised writes |
+| `store.test.js` | One-time migration, serialised writes, retry after a failed load, unreadable old data |
+| `capture.test.js` | Native queue → pipeline, Expo Go behaviour, consent-gated listener config, pasted alerts |
+| `captureDiagnostics.test.js` | Each "Capture status" message |
+| `negative.test.js` | Negative cases: non-transaction texts, no auto-assign when unsure, no false duplicates, bad IDs and amounts rejected without changing data, bad cycle/card/backup configuration |
 | `src/auth/__tests__/pin.test.js` | PIN rules, SecureStore, legacy PIN migration |
-| `screens/__tests__/`, `__tests__/App.test.js` | Review inbox, group screen, and PIN setup rendering |
+| `src/groups/__tests__/settlement.test.js` | Expense split totals and settlements, including uneven decimal splits |
+| `modules/notification-capture/__tests__/` | JS wrapper with and without the native module |
+| `screens/__tests__/` | Every cashback screen (list, cards, card editor, category and transaction editors, review inbox actions, capture and privacy, backup), and the expense-split screens |
+| `__tests__/App*.test.js` | PIN setup and unlock, and when the "Needs review" prompt appears |
+
+Shared mocks (AsyncStorage, a tappable Picker) live in `jest.setup.js`; screen helpers are in `screens/__tests__/testUtils.js`. For a coverage report:
+
+```bash
+npx jest --coverage
+```
 
 Tests run in the `Asia/Kolkata` time zone (`jest.global-setup.js`) so cycle boundaries match the phone.
 

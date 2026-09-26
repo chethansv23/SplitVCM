@@ -11,6 +11,7 @@ const expoModulesCore = path.dirname(
 module.exports = {
   preset: "jest-expo",
   globalSetup: "./jest.global-setup.js",
+  setupFilesAfterEnv: ["./jest.setup.js"],
   testMatch: ["**/__tests__/**/*.test.js"],
   modulePathIgnorePatterns: ["<rootDir>/modules/notification-capture/android"],
   moduleNameMapper: {

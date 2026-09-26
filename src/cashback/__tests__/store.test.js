@@ -52,3 +52,16 @@ test("withResult returns a value; a throwing updater saves nothing", async () =>
   await updateState((s) => ({ ...s, templates: [] }));
   expect((await getState()).templates).toHaveLength(0);
 });
+
+test("a failed load can be retried", async () => {
+  // getItem is already a jest.fn in the mock; a one-off rejection leaves it intact.
+  AsyncStorage.getItem.mockRejectedValueOnce(new Error("disk busy"));
+  await expect(getState()).rejects.toThrow("disk busy");
+  await expect(getState()).resolves.toMatchObject({ groups: [] });
+});
+
+test("unreadable v0 data does not block the app and is kept as a backup", async () => {
+  await AsyncStorage.setItem(KEYS.groups, "{not json");
+  await expect(getState()).resolves.toMatchObject({ groups: [] });
+  expect(await AsyncStorage.getItem(KEYS.backupV0)).toBe("{not json");
+});

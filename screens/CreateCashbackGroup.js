@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Btn, Field, ui } from "../components/cashback/ui";
 import { withComputed } from "../src/cashback/compute";
@@ -15,28 +15,66 @@ export default function CreateCashbackGroup({ navigation }) {
   const [categoryName, setCategoryName] = useState("");
   const [percentage, setPercentage] = useState("");
   const [cap, setCap] = useState("");
+  const [editingId, setEditingId] = useState(null);
 
-  const addCategory = () => {
-    if (!categoryName || percentage === "" || isNaN(percentage))
-      return Alert.alert("Enter category and percentage");
-    setCategories((prev) => [
-      ...prev,
-      {
-        id: newId("cat"),
-        name: categoryName,
-        percentage: parseFloat(percentage),
-        cap: cap ? parseFloat(cap) : null,
-        keywords: [],
-        mccNotes: "",
-        active: true,
-        excluded: false,
-        isDefault: prev.length === 0,
-      },
-    ]);
+  const clearForm = () => {
     setCategoryName("");
     setPercentage("");
     setCap("");
+    setEditingId(null);
   };
+
+  // Adds a new category, or saves the one being edited.
+  const saveCategory = () => {
+    if (!categoryName || percentage === "" || isNaN(percentage))
+      return Alert.alert("Enter category and percentage");
+    const fields = {
+      name: categoryName,
+      percentage: parseFloat(percentage),
+      cap: cap ? parseFloat(cap) : null,
+    };
+    setCategories((prev) =>
+      editingId
+        ? prev.map((c) => (c.id === editingId ? { ...c, ...fields } : c))
+        : [
+            ...prev,
+            {
+              id: newId("cat"),
+              ...fields,
+              keywords: [],
+              mccNotes: "",
+              active: true,
+              excluded: false,
+              isDefault: prev.length === 0,
+            },
+          ]
+    );
+    clearForm();
+  };
+
+  const editCategory = (c) => {
+    setEditingId(c.id);
+    setCategoryName(c.name);
+    setPercentage(String(c.percentage));
+    setCap(c.cap == null ? "" : String(c.cap));
+  };
+
+  const deleteCategory = (c) =>
+    Alert.alert("Delete category", `Delete "${c.name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          setCategories((prev) => {
+            const rest = prev.filter((x) => x.id !== c.id);
+            // Keep one default suggestion when the default is removed.
+            return c.isDefault && rest.length ? [{ ...rest[0], isDefault: true }, ...rest.slice(1)] : rest;
+          });
+          if (editingId === c.id) clearForm();
+        },
+      },
+    ]);
 
   const createGroup = async () => {
     if (!groupName) return Alert.alert("Enter group name");
@@ -81,17 +119,22 @@ export default function CreateCashbackGroup({ navigation }) {
         keyboardType="numeric"
       />
 
-      <Text style={[ui.title, { marginTop: 16 }]}>Add Categories</Text>
+      <Text style={[ui.title, { marginTop: 16 }]}>{editingId ? "Edit Category" : "Add Categories"}</Text>
       <Field value={categoryName} onChangeText={setCategoryName} placeholder="Category name (e.g. Recharge)" style={{ marginTop: 6 }} />
       <Field value={percentage} onChangeText={setPercentage} placeholder="Percentage (e.g. 10)" keyboardType="numeric" style={{ marginTop: 6 }} />
       <Field value={cap} onChangeText={setCap} placeholder="Cap (optional)" keyboardType="numeric" style={{ marginTop: 6 }} />
-      <Btn title="Add Category" onPress={addCategory} />
+      <Btn title={editingId ? "Save Category" : "Add Category"} onPress={saveCategory} />
+      {editingId ? <Btn title="Cancel edit" kind="secondary" onPress={clearForm} /> : null}
 
       <View style={{ marginVertical: 10 }}>
         {categories.map((item) => (
-          <Text key={item.id}>
-            {item.name} - {item.percentage}% {item.cap ? `(cap ₹${item.cap})` : ""}
-          </Text>
+          <View key={item.id} style={[ui.between, styles.categoryRow, editingId === item.id && styles.editing]}>
+            <Text style={{ flex: 1 }}>
+              {item.name} - {item.percentage}% {item.cap ? `(cap ₹${item.cap})` : ""}
+            </Text>
+            <Btn small kind="secondary" title="Edit" onPress={() => editCategory(item)} />
+            <Btn small kind="danger" title="Delete" onPress={() => deleteCategory(item)} style={{ marginLeft: 6 }} />
+          </View>
         ))}
         <Text style={ui.small}>A "0% / excluded" category is added automatically.</Text>
       </View>
@@ -100,3 +143,8 @@ export default function CreateCashbackGroup({ navigation }) {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  categoryRow: { paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "#ccc" },
+  editing: { backgroundColor: "#e7f1ff" },
+});

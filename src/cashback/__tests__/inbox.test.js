@@ -190,3 +190,39 @@ describe("retention", () => {
     expect(s.candidates[0].rawText).toBeNull();
   });
 });
+
+describe("review fixes", () => {
+  test("a date-only email merges with the timed SMS for the same spend", () => {
+    const { state } = liveplusState();
+    const email = {
+      text: "Rs.899.00 has been debited from your HSBC Credit Card ending 5678 towards BIGBASKET on 14 Sep 2026.",
+      sourceApp: "com.google.android.gm",
+    };
+    const { summary } = ingestMany(state, [hsbcAlert("BIGBASKET"), email], NOW);
+    expect(summary).toMatchObject({ assigned: 1, duplicate: 1 });
+  });
+
+  test("date-only alerts on different days are not merged", () => {
+    const a = { amount: 100, direction: "debit", cardLastFour: "1", occurredAt: "2026-09-14T00:00:00", dateFromText: true, timeFromText: false };
+    expect(isDuplicate(a, { ...a, occurredAt: "2026-09-15T00:00:00" })).toBe(false);
+    expect(isDuplicate(a, { ...a, occurredAt: "2026-09-14T18:00:00", timeFromText: true })).toBe(true);
+  });
+
+  test("retention returns the same state object when nothing changed", () => {
+    const { state } = liveplusState();
+    const s = { ...state, candidates: [{ id: "a", status: "pending-review", rawText: "x" }] };
+    expect(applyRetention(s, NOW)).toBe(s);
+  });
+
+  test("an alert that fails to process is kept for review, not lost", () => {
+    const { state } = liveplusState();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    // A malformed cycle group makes category matching throw.
+    const broken = { ...state, groups: [{ ...state.groups[0], categories: null }] };
+    const { state: next, summary } = ingestMany(broken, [hsbcAlert("BIGBASKET")], NOW);
+    expect(summary.review).toBe(1);
+    expect(pendingCandidates(next)[0]).toMatchObject({ reviewReasons: ["processing-error"] });
+    expect(pendingCandidates(next)[0].rawText).toContain("BIGBASKET");
+    warn.mockRestore();
+  });
+});

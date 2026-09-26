@@ -1,3 +1,5 @@
+import { toDateKey } from "./dates";
+
 // One swipe often produces an SMS, a bank-app notification, and an email
 // notification. The source is deliberately not part of the identity.
 
@@ -19,6 +21,10 @@ export const isDuplicate = (a, b, windowMinutes = DEFAULT_DUPLICATE_WINDOW_MINUT
   const cardB = b.cardLastFour || null;
   // Only compare cards when both alerts name one; an email may omit it.
   if (cardA && cardB && cardA !== cardB) return false;
+  // An alert that gives only a date (no time) matches on the same day.
+  if (a.dateFromText && b.dateFromText && (a.timeFromText === false || b.timeFromText === false)) {
+    return toDateKey(a.occurredAt) === toDateKey(b.occurredAt);
+  }
   const diff = Math.abs(new Date(a.occurredAt) - new Date(b.occurredAt));
   return diff <= windowMinutes * 60 * 1000;
 };

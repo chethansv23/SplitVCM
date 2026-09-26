@@ -1,5 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
+  Alert,
   Button,
   FlatList,
   StyleSheet,
@@ -8,21 +10,38 @@ import {
   View,
 } from "react-native";
 
-export default function CreateGroupScreen({ route, navigation }) {
+export default function CreateGroupScreen({ navigation }) {
   const [groupName, setGroupName] = useState("");
   const [members, setMembers] = useState([]);
   const [newMember, setNewMember] = useState("");
 
   const handleAddMember = () => {
-    if (newMember.trim()) {
-      setMembers([...members, newMember]);
-      setNewMember("");
+    const name = newMember.trim();
+    if (!name) return;
+    if (members.some((m) => m.toLowerCase() === name.toLowerCase())) {
+      Alert.alert("Duplicate member", `${name} is already in this group.`);
+      return;
     }
+    setMembers([...members, name]);
+    setNewMember("");
   };
 
-  const handleSaveGroup = () => {
-    const newGroup = { name: groupName, members, items: [] };
-    route.params.onSave(newGroup);
+  // Saves straight to storage (the list reloads on focus), instead of
+  // passing a callback through navigation params, which React Navigation
+  // warns about because params must be serialisable.
+  const handleSaveGroup = async () => {
+    const name = groupName.trim();
+    if (!name) return Alert.alert("Enter a group name");
+    if (members.length === 0) return Alert.alert("Add at least one member");
+    const stored = JSON.parse((await AsyncStorage.getItem("groups")) || "[]");
+    // Groups are looked up by name, so names must be unique.
+    if (stored.some((g) => g.name.trim().toLowerCase() === name.toLowerCase())) {
+      return Alert.alert("Name in use", "Choose a different group name.");
+    }
+    await AsyncStorage.setItem(
+      "groups",
+      JSON.stringify([...stored, { name, members, items: [] }])
+    );
     navigation.goBack();
   };
 

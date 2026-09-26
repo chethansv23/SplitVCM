@@ -1,4 +1,5 @@
 import { Picker } from "@react-native-picker/picker";
+import { useEffect, useState } from "react";
 import {
   StyleSheet,
   Switch,
@@ -47,8 +48,33 @@ export function Field({ label, style, ...props }) {
   return (
     <View style={style}>
       {label ? <Text style={s.label}>{label}</Text> : null}
-      <TextInput placeholderTextColor="#888" style={s.input} {...props} />
+      <TextInput placeholderTextColor="#888" style={s.input} accessibilityLabel={label} {...props} />
     </View>
+  );
+}
+
+// Whole-number setting that saves when editing ends, so the field can be
+// cleared and retyped. Invalid or out-of-range input reverts.
+export function NumberField({ label, value, onCommit, min = 1, max = 3650 }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = parseInt(text, 10);
+    if (Number.isInteger(n) && n >= min && n <= max) {
+      if (n !== value) onCommit(n);
+    } else {
+      setText(String(value));
+    }
+  };
+  return (
+    <Field
+      label={label}
+      value={text}
+      onChangeText={setText}
+      onEndEditing={commit}
+      onBlur={commit}
+      keyboardType="number-pad"
+    />
   );
 }
 
@@ -59,7 +85,7 @@ export function Toggle({ label, value, onValueChange, hint }) {
         <Text style={s.toggleLabel}>{label}</Text>
         {hint ? <Text style={s.hint}>{hint}</Text> : null}
       </View>
-      <Switch value={Boolean(value)} onValueChange={onValueChange} />
+      <Switch value={Boolean(value)} onValueChange={onValueChange} accessibilityLabel={label} />
     </View>
   );
 }

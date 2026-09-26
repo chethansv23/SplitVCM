@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Alert, AppState, ScrollView, Share, Text, View } from "react-native";
 
 import NotificationCapture from "../../modules/notification-capture";
-import { Banner, Btn, Chips, Field, Section, Toggle, ui } from "../../components/cashback/ui";
+import { Banner, Btn, Chips, Field, NumberField, Section, Toggle, ui } from "../../components/cashback/ui";
 import { exportBackup, parseBackup } from "../../src/cashback/backup";
 import { explainCapture } from "../../src/cashback/captureDiagnostics";
 import { ingestPastedAlert, processCapturedNotifications, syncCaptureConfig } from "../../src/cashback/capture";
@@ -243,11 +243,11 @@ export default function CaptureSettings({ navigation }) {
           value={settings.includeBankAccountDebits}
           onValueChange={(v) => setSettings({ includeBankAccountDebits: v })}
         />
-        <Field
+        <NumberField
           label="Duplicate window (minutes)"
-          value={String(settings.duplicateWindowMinutes)}
-          onChangeText={(v) => setSettings({ duplicateWindowMinutes: Math.max(1, parseInt(v, 10) || 1) })}
-          keyboardType="number-pad"
+          value={settings.duplicateWindowMinutes}
+          max={1440}
+          onCommit={(n) => setSettings({ duplicateWindowMinutes: n })}
         />
       </Section>
 
@@ -258,11 +258,10 @@ export default function CaptureSettings({ navigation }) {
       </Section>
 
       <Section title="Privacy">
-        <Field
+        <NumberField
           label="Delete captured text this many days after review"
-          value={String(settings.rawTextRetentionDays)}
-          onChangeText={(v) => setSettings({ rawTextRetentionDays: Math.max(1, parseInt(v, 10) || 1) })}
-          keyboardType="number-pad"
+          value={settings.rawTextRetentionDays}
+          onCommit={(n) => setSettings({ rawTextRetentionDays: n })}
         />
         <Btn
           kind="danger"

@@ -96,7 +96,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
     <View>
       <View style={ui.between}>
         <Text style={[ui.title, { flex: 1 }]}>{group.name}</Text>
-        <TouchableOpacity onPress={confirmDeleteGroup}>
+        <TouchableOpacity onPress={confirmDeleteGroup} accessibilityRole="button" accessibilityLabel="Delete group">
           <Icon name="close" size={30} color={COLORS.danger} />
         </TouchableOpacity>
       </View>
@@ -122,7 +122,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
       ))}
 
       <View style={[ui.between, { marginTop: 14 }]}>
-        <Text style={ui.strong}>Categories</Text>
+        <Text style={ui.strong}>Categories <Text style={ui.small}>(tap to edit or delete)</Text></Text>
         <Btn small kind="secondary" title="+ Category" onPress={() => navigation.navigate("CategoryEditor", { target: "group", ownerId: groupId })} />
       </View>
       {group.categories.map((c) => {
@@ -140,6 +140,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
             <Text style={ui.small}>
               {money(r.cashback)}/{r.cap == null ? "∞" : money(r.cap)} · spent {money(r.spent)}
             </Text>
+            <Icon name="pencil" size={26} color={COLORS.primary} style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         );
       })}
@@ -208,7 +209,11 @@ export default function CashbackGroupDetails({ route, navigation }) {
                 {item.refundOf ? " · refund" : ""}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => confirmDeleteTx(item)}>
+            <TouchableOpacity
+              onPress={() => confirmDeleteTx(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${item.name || "transaction"}`}
+            >
               <Icon name="trash" size={25} color={COLORS.danger} />
             </TouchableOpacity>
           </TouchableOpacity>
