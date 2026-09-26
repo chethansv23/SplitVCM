@@ -1,368 +1,241 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRef, useState } from "react";
-import {
-  Alert,
-  Button,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useMemo, useState } from "react";
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Icon from "react-native-vector-icons/EvilIcons";
 
+import { Banner, Btn, Chips, COLORS, Field, money, ui } from "../components/cashback/ui";
+import { computeCycle, previewCashback, sortTransactions } from "../src/cashback/compute";
+import { formatDateTime, formatRange, parseEditableDateTime, toEditableDateTime } from "../src/cashback/dates";
+import { addTransaction, deleteTransaction, isOutsideCycle } from "../src/cashback/groups";
+import { updateState, useCashbackState } from "../src/cashback/store";
+
+const MODE_LABEL = { automatic: "auto", reviewed: "reviewed", manual: "manual" };
+
 export default function CashbackGroupDetails({ route, navigation }) {
-  const { group, loadCashbackGroups } = route.params;
-  const [isAddingTransaction, setIsAddingTransaction] = useState(false);
-  const [localGroup, setLocalGroup] = useState(group);
-  const [transactions, setTransactions] = useState(group.transactions || []);
+  const { groupId } = route.params;
+  const state = useCashbackState();
+  const group = state?.groups.find((g) => g.id === groupId);
+
+  const [isAdding, setIsAdding] = useState(false);
+  const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [tranName, setTranName] = useState("");
-  const [category, setCategory] = useState(group.categories[0]?.name || "");
-  const [totalCashback, setTotalCashback] = useState(group.totalCashback || 0);
-  const inputRef = useRef(null);
+  const [when, setWhen] = useState(toEditableDateTime());
+  const [categoryId, setCategoryId] = useState(null);
 
-  // ✅ ONLY ADDITION
-  const totalSpent = transactions.reduce(
-    (sum, tx) => sum + (parseFloat(tx.amount) || 0),
-    0
-  );
+  const result = useMemo(() => (group ? computeCycle(group) : null), [group]);
 
-  const getCashback = (amount, category) => {
-    const cat = localGroup.categories.find((c) => c.name === category);
-    if (!cat) return 0;
+  if (!state) return <Text style={ui.empty}>Loading…</Text>;
+  if (!group) return <Text style={ui.empty}>This group no longer exists.</Text>;
 
-    const pct = parseFloat(cat.percentage) || 0;
-    const cap = cat.cap ? parseFloat(cat.cap) : null;
-    const catTotalCashback = parseFloat(cat?.totalCashback || "0");
-    const groupTotalCashback = parseFloat(localGroup?.totalCashback || "0");
-    const groupCap = localGroup.groupCap
-      ? parseFloat(localGroup.groupCap)
+  const activeCategories = group.categories.filter((c) => c.active !== false);
+  const selectedCategory = categoryId ?? (activeCategories.find((c) => c.isDefault) || activeCategories[0])?.id;
+  const occurredAt = parseEditableDateTime(when);
+  const preview =
+    isAdding && amount && !isNaN(amount) && selectedCategory
+      ? previewCashback(group, { amount: parseFloat(amount), categoryId: selectedCategory, occurredAt: occurredAt || new Date().toISOString() })
       : null;
 
-    let cashback = Math.floor((parseFloat(amount) * pct) / 100);
-
-    if (cap && cashback + catTotalCashback > cap)
-      cashback = cap - catTotalCashback;
-    if (groupCap && cashback + groupTotalCashback > groupCap)
-      cashback = groupCap - groupTotalCashback;
-
-    return cashback;
-  };
-
-  const saveTransactions = async (
-    updated,
-    currentTotalCashback,
-    updatedCategories
-  ) => {
-    setTransactions(updated);
-
-    const newGroup = {
-      ...localGroup,
-      totalCashback: currentTotalCashback > 0 ? currentTotalCashback : 0,
-      transactions: updated,
-      categories: updatedCategories || localGroup.categories,
+  const save = async () => {
+    if (!amount || isNaN(amount)) return Alert.alert("Enter an amount");
+    if (!occurredAt) return Alert.alert("Enter the date as YYYY-MM-DD HH:mm");
+    if (!selectedCategory) return Alert.alert("Choose a category");
+    const doSave = async () => {
+      await updateState((s) => ({
+        ...s,
+        groups: addTransaction(s.groups, groupId, {
+          name, amount: parseFloat(amount), categoryId: selectedCategory, occurredAt,
+        }).groups,
+      }));
+      setName("");
+      setAmount("");
+      setWhen(toEditableDateTime());
+      setIsAdding(false);
     };
-
-    setLocalGroup(newGroup);
-    setTotalCashback(newGroup.totalCashback);
-
-    const stored = await AsyncStorage.getItem("cashbacks");
-    const groups = stored ? JSON.parse(stored) : [];
-    const updatedGroups = groups.map((g) =>
-      g.id === newGroup.id ? newGroup : g
-    );
-
-    await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
-    await loadCashbackGroups();
-  };
-
-  const addTransaction = async () => {
-    if (!amount || isNaN(amount)) return;
-    const cashback = getCashback(parseFloat(amount) || 0, category);
-
-    const updatedCategories = localGroup.categories.map((g) =>
-      g.name === category
-        ? { ...g, totalCashback: g.totalCashback + cashback }
-        : g
-    );
-
-    const newTx = {
-      id: Date.now(),
-      name: tranName,
-      amount: parseFloat(amount),
-      category,
-      cashback,
-    };
-
-    await saveTransactions(
-      [...transactions, newTx],
-      localGroup.totalCashback + cashback,
-      updatedCategories
-    );
-    setTranName("");
-    setAmount("");
-    inputRef.current?.blur();
-  };
-
-  const deleteGroup = async (id) => {
-    Alert.alert(
-      "Confirm Deletion",
-      `Are you sure you want to delete the group "${localGroup.name}"?`,
-      [
+    if (isOutsideCycle(group, occurredAt)) {
+      Alert.alert("Outside this cycle", "The date is outside this group's cycle. Add it anyway?", [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "OK",
-          onPress: async () => {
-            try {
-              const storedGroupsString = await AsyncStorage.getItem(
-                "cashbacks"
-              );
-              const storedGroups = JSON.parse(storedGroupsString) || [];
-              const updatedGroups = storedGroups.filter((g) => g.id != id);
-              await AsyncStorage.setItem(
-                "cashbacks",
-                JSON.stringify(updatedGroups)
-              );
-              Alert.alert(
-                "Group Deleted",
-                "The group has been successfully deleted."
-              );
-              navigation.goBack();
-            } catch (error) {
-              console.error("Failed to delete group:", error);
-              Alert.alert(
-                "Error",
-                "An error occurred while deleting the group."
-              );
-            }
-          },
+        { text: "Add anyway", onPress: doSave },
+      ]);
+    } else {
+      await doSave();
+    }
+  };
+
+  const confirmDeleteTx = (tx) =>
+    Alert.alert("Delete transaction", `Delete "${tx.name || "transaction"}" (${money(tx.amount)})?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => updateState((s) => ({ ...s, groups: deleteTransaction(s.groups, groupId, tx.id) })),
+      },
+    ]);
+
+  const confirmDeleteGroup = () =>
+    Alert.alert("Confirm Deletion", `Delete the group "${group.name}" and its ${group.transactions.length} transactions?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          navigation.goBack();
+          await updateState((s) => ({ ...s, groups: s.groups.filter((g) => g.id !== groupId) }));
         },
-      ],
-      { cancelable: false }
-    );
-  };
+      },
+    ]);
 
-  const deleteTransaction = async (id) => {
-    const tan = transactions.find((t) => t.id == id);
-    const updated = transactions.filter((tx) => tx.id !== id);
+  const toggleClosed = () =>
+    updateState((s) => ({
+      ...s,
+      groups: s.groups.map((g) => (g.id === groupId ? { ...g, status: g.status === "closed" ? "open" : "closed" } : g)),
+    }));
 
-    const updatedCategories = localGroup.categories.map((g) =>
-      g.name === tan.category
-        ? {
-            ...g,
-            totalCashback:
-              g.totalCashback - tan.cashback > 0
-                ? g.totalCashback - tan.cashback
-                : 0,
-          }
-        : g
-    );
+  const categoryName = (id) => group.categories.find((c) => c.id === id)?.name || "Uncategorised";
+  const transactions = sortTransactions(group.transactions).reverse();
 
-    await saveTransactions(
-      updated,
-      localGroup.totalCashback - tan.cashback,
-      updatedCategories
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.groupName}>{localGroup.name}</Text>
-        <TouchableOpacity
-          style={styles.deleteGroupButton}
-          onPress={() => deleteGroup(localGroup.id)}
-        >
-          <Icon name="close" size={30} color="#dc3545" />
+  const header = (
+    <View>
+      <View style={ui.between}>
+        <Text style={[ui.title, { flex: 1 }]}>{group.name}</Text>
+        <TouchableOpacity onPress={confirmDeleteGroup}>
+          <Icon name="close" size={30} color={COLORS.danger} />
         </TouchableOpacity>
       </View>
+      {group.cycleStart ? (
+        <Text style={ui.muted}>
+          Cycle {formatRange(group.cycleStart, group.cycleEnd)} · {group.status === "closed" ? "closed" : "open"}
+        </Text>
+      ) : null}
 
-      {/* ✅ ONLY UI ADDITION */}
       <Text style={styles.total}>
-        Total Spent: <Text style={styles.totalSpent}>₹{totalSpent}</Text>
+        Total Spent: <Text style={{ color: "#a7282e" }}>{money(result.totalSpent)}</Text>
       </Text>
-
       <Text style={styles.total}>
-        Total Cashback: <Text style={styles.totalAmount}>₹{totalCashback}</Text>
+        Total Cashback: <Text style={{ color: COLORS.success }}>{money(result.total)}</Text>
       </Text>
-
-      <Text style={styles.createdAt}>
-        Created On: {new Date(localGroup.id).toLocaleString()}
+      <Text style={ui.muted}>
+        Group cap: {result.groupRemaining == null ? "none" : `${money(result.groupRemaining)} remaining`}
       </Text>
-      <Text style={styles.createdAt}>Cap: {localGroup?.groupCap || "oo"}</Text>
+      {(group.capPools || []).map((p) => (
+        <Text key={p.id} style={ui.muted}>
+          {p.name}: {result.byCapPool[p.id].remaining == null ? "no cap" : `${money(result.byCapPool[p.id].remaining)} of ${money(p.cap)} remaining`}
+        </Text>
+      ))}
 
-      {isAddingTransaction ? (
-        <View>
-          <TextInput
-            ref={inputRef}
-            value={tranName}
-            onChangeText={setTranName}
-            placeholder="Name"
-            placeholderTextColor="#888"
-            style={styles.input}
-          />
-          <TextInput
-            ref={inputRef}
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="Amount"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            style={styles.input}
-          />
-
-          <View style={styles.categoriesRow}>
-            {localGroup.categories.map((c) => (
-              <TouchableOpacity
-                key={c.name}
-                onPress={() => setCategory(c.name)}
-                style={[
-                  styles.categoryButton,
-                  category === c.name && styles.selectedCategory,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    category === c.name && styles.selectedCategoryText,
-                  ]}
-                >
-                  {c.name +
-                    "(" +
-                    (c?.totalCashback || 0) +
-                    "/" +
-                    (c?.cap || "oo") +
-                    ")"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
+      <View style={[ui.between, { marginTop: 14 }]}>
+        <Text style={ui.strong}>Categories</Text>
+        <Btn small kind="secondary" title="+ Category" onPress={() => navigation.navigate("CategoryEditor", { target: "group", ownerId: groupId })} />
+      </View>
+      {group.categories.map((c) => {
+        const r = result.byCategory[c.id];
+        return (
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={async () => {
-              await addTransaction();
-              setIsAddingTransaction(false);
-            }}
+            key={c.id}
+            style={styles.categoryRow}
+            onPress={() => navigation.navigate("CategoryEditor", { target: "group", ownerId: groupId, categoryId: c.id })}
           >
-            <Text style={styles.actionButtonText}>Add Item</Text>
+            <Text style={[{ flex: 1 }, c.active === false && ui.muted]}>
+              {c.name} · {c.excluded ? "0%" : c.percentage == null ? "rate not set" : `${c.percentage}%`}
+              {c.active === false ? " · inactive" : ""}
+            </Text>
+            <Text style={ui.small}>
+              {money(r.cashback)}/{r.cap == null ? "∞" : money(r.cap)} · spent {money(r.spent)}
+            </Text>
           </TouchableOpacity>
+        );
+      })}
 
-          <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => {
-              setAmount("");
-              setIsAddingTransaction(false);
-            }}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+      <View style={[ui.row, ui.gap, { marginTop: 8 }]}>
+        <Btn small kind="secondary" title={group.status === "closed" ? "Reopen group" : "Close group"} onPress={toggleClosed} />
+      </View>
+
+      {isAdding ? (
+        <View style={[ui.card, { marginTop: 14 }]}>
+          <Field value={name} onChangeText={setName} placeholder="Name / merchant" />
+          <Field value={amount} onChangeText={setAmount} placeholder="Amount" keyboardType="numeric" style={{ marginTop: 8 }} />
+          <Field label="Date & time (YYYY-MM-DD HH:mm)" value={when} onChangeText={setWhen} />
+          <Chips
+            value={selectedCategory}
+            onChange={setCategoryId}
+            options={activeCategories.map((c) => {
+              const r = result.byCategory[c.id];
+              return { value: c.id, label: `${c.name} (${r.cashback}/${r.cap ?? "∞"})` };
+            })}
+          />
+          {preview ? (
+            <Text style={ui.muted}>
+              Cashback: {money(preview.cashback)}
+              {preview.capped ? " (capped)" : ""} · category left{" "}
+              {preview.categoryRemaining == null ? "∞" : money(preview.categoryRemaining)}
+            </Text>
+          ) : null}
+          {occurredAt && isOutsideCycle(group, occurredAt) ? (
+            <Banner kind="warning">This date is outside the group's cycle.</Banner>
+          ) : null}
+          <Btn title="Add Item" onPress={save} />
+          <Btn title="Cancel" kind="secondary" onPress={() => setIsAdding(false)} />
         </View>
       ) : (
-        <Button
-          title="Add Transaction"
-          onPress={() => setIsAddingTransaction(true)}
-        />
+        <Btn title="Add Transaction" onPress={() => setIsAdding(true)} style={{ marginTop: 14 }} />
       )}
+      <Text style={[ui.strong, { marginTop: 16, marginBottom: 6 }]}>Transactions</Text>
+    </View>
+  );
 
-      <FlatList
-        data={transactions}
-        keyExtractor={(item) => item.id.toString()}
-        style={{ marginTop: 20 }}
-        renderItem={({ item }) => (
-          <View style={styles.transactionItem}>
-            <View style={styles.transactionDetails}>
-              <Text style={styles.transactionText}>Name: {item?.name}</Text>
-              <Text style={styles.transactionText}>
-                Category: {item.category}
+  return (
+    <FlatList
+      contentContainerStyle={ui.scroll}
+      data={transactions}
+      keyExtractor={(item) => String(item.id)}
+      ListHeaderComponent={header}
+      keyboardShouldPersistTaps="handled"
+      renderItem={({ item }) => {
+        const r = result.perTransaction[item.id];
+        return (
+          <TouchableOpacity
+            style={styles.transactionItem}
+            onPress={() => navigation.navigate("TransactionEditor", { groupId, txId: item.id })}
+          >
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={ui.strong}>{item.name || "Unnamed"}</Text>
+              <Text>{categoryName(item.categoryId)}</Text>
+              <Text>
+                Amount: {money(item.amount)} · Cashback: {money(r?.cashback)}
+                {r?.capped ? " (capped)" : ""}
+                {r?.rateUnknown ? " (rate not set)" : ""}
               </Text>
-              <Text style={styles.transactionText}>Amount: ₹{item.amount}</Text>
-              <Text style={styles.transactionText}>
-                Cashback: ₹{item.cashback}
-              </Text>
-              <Text style={styles.transactionText}>
-                Created: {new Date(item.id).toLocaleString()}
+              <Text style={ui.small}>
+                {formatDateTime(item.occurredAt)} · {MODE_LABEL[item.assignmentMode] || "manual"}
+                {item.refundOf ? " · refund" : ""}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => deleteTransaction(item.id)}
-            >
-              <Icon name="trash" size={25} color="#dc3545" />
+            <TouchableOpacity onPress={() => confirmDeleteTx(item)}>
+              <Icon name="trash" size={25} color={COLORS.danger} />
             </TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={() => (
-          <Text style={styles.emptyText}>No transactions yet</Text>
-        )}
-      />
-    </View>
+          </TouchableOpacity>
+        );
+      }}
+      ListEmptyComponent={() => <Text style={ui.empty}>No transactions yet</Text>}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  groupName: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  deleteGroupButton: { position: "absolute", top: 3, right: 10 },
-  total: { fontSize: 18, marginVertical: 10, fontWeight: "bold" },
-  totalAmount: { color: "#28A745", fontWeight: "bold" },
-
-  // ✅ ONLY STYLE ADDITION
-  totalSpent: {
-    color: "#a7282eff",
-    fontWeight: "bold",
-  },
-
-  createdAt: { fontSize: 16, marginVertical: 4, color: "#555" },
-  deleteButton: { padding: 0, backgroundColor: "#fff" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  categoriesRow: {
+  total: { fontSize: 18, marginTop: 8, fontWeight: "bold" },
+  categoryRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 10,
-    gap: 8,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
   },
-  categoryButton: {
-    borderWidth: 1,
-    borderColor: "#007BFF",
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  selectedCategory: { backgroundColor: "#007BFF" },
-  categoryText: { color: "#007BFF" },
-  selectedCategoryText: { color: "#fff", fontWeight: "bold" },
   transactionItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: COLORS.border,
     borderRadius: 6,
     padding: 12,
     marginBottom: 10,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: COLORS.card,
   },
-  transactionDetails: { flex: 1, paddingRight: 10 },
-  transactionText: { fontSize: 14, marginBottom: 2 },
-  emptyText: { textAlign: "center", color: "#999", marginTop: 30 },
-  actionButton: {
-    backgroundColor: "#007bff",
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginTop: 8,
-    alignItems: "center",
-  },
-  actionButtonText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  cancelButton: { backgroundColor: "#ccc" },
-  cancelButtonText: { color: "#333" },
 });

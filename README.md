@@ -1,78 +1,54 @@
 # SplitVCM
 
-SplitVCM is an Expo-powered React Native app for keeping track of shared expenses and credit-card cashback.
+SplitVCM is an Expo-powered React Native app for keeping track of shared expenses and credit-card cashback. On Android it can also read your card's transaction alerts (SMS, bank-app, and email notifications) and file them into the right cashback cycle automatically.
 
 ## Features
 
-- Create expense groups and add members.
-- Record expenses, including the payer and amount.
-- Calculate equal-share settlements for a group.
-- Mark settled groups and manage expense entries.
-- Create cashback groups, such as a credit card or offer.
-- Define cashback categories with percentage rates and optional category or group caps.
-- Record transactions and track cashback earned.
-- Store all group and cashback data locally on the device using AsyncStorage.
-- Protect app access with device biometric authentication, when available.
+**Shared expenses**
+
+- Create expense groups, add members, and record who paid what.
+- Calculate equal-share settlements and mark groups as settled.
+
+**Cashback tracking**
+
+- Card templates for HDFC Millennia, HSBC Live+, HSBC RuPay, Airtel Axis, PhonePe SBI (PURPLE / SELECT BLACK), and Amazon Pay ICICI (Prime / non-Prime), plus custom cards. Every rate, cap, keyword, and cycle is editable.
+- One cycle group per card per billing cycle (for example `HSBC Live+ · 10 Sep–09 Oct 2026`), created on request. The app offers the next cycle when one ends, but never creates it silently.
+- Category caps, shared cap pools (such as Airtel Axis's combined ₹500 for Swiggy, Zomato, and BigBasket), an overall cycle cap, per-card rounding, and a reward-point value.
+- Cashback is recalculated from scratch after every change, so edits, moves, deletions, refunds, and late alerts always give the same result.
+- Edit any transaction, or move it to another cycle or category. You get a warning if its date is outside the destination cycle.
+- A 0% / excluded category on every card. Categories that still hold transactions can only be deleted after those transactions are reassigned.
+- Manual cashback groups work as before.
+
+**Automatic capture (Android development build)**
+
+- Reads transaction notifications from apps you allow (Messages, Gmail, bank apps). It does not use SMS permissions.
+- Clear alerts are added automatically. Unclear ones go to a **Needs review** inbox, and the app prompts you when it opens.
+- Review actions: Add, Edit and add, No cashback, Skip, Ignore, Create cycle group, and Link refund.
+- "Remember this merchant" teaches the card a rule, so the next alert from that merchant is added automatically.
+- The same spend arriving by SMS, app notification, and email is recorded only once.
+- **Paste an alert** runs any text through the same pipeline. It works in Expo Go too.
+
+**Security and privacy**
+
+- Unlock with fingerprint, or with a PIN stored in the device keystore (SecureStore). On first run you choose a PIN; there is no default.
+- All data stays on the phone. Android cloud backup is disabled.
+- Captured alert text is deleted automatically after 30 days (you can change this), and can be deleted immediately.
+- JSON export and import for moving to a new phone.
 
 ## Requirements
 
-- Node.js 20 or later
-- npm
-- Expo Go on a physical device, or an Android/iOS emulator
+- Node.js 20 or later, and npm
+- Expo Go on a phone, or an Android/iOS emulator, for everything except automatic capture
+- For automatic capture: an Android phone with a **development build** of SplitVCM (see below)
 
 ## Getting started
 
-Install dependencies:
-
 ```bash
 npm install
-```
-
-Start the Expo development server:
-
-```bash
 npm start
 ```
 
-You can also launch a platform directly:
-
-```bash
-npm run android
-npm run ios
-npm run web
-```
-
-## How it works
-
-The app has two tabs:
-
-- **Groups**: create a shared-expense group, add members and expenses, then calculate who should pay whom to settle the group.
-- **Cashback**: create a cashback profile, configure categories and limits, and record transactions to calculate earned cashback.
-
-All application data is kept on the device. Expense groups use the `groups` AsyncStorage key; cashback groups use `cashbacks`. Clearing the app's storage removes this data.
-
-## Project structure
-
-```text
-.
-├── App.js                     # Authentication and navigation setup
-├── screens/
-│   ├── GroupsScreen.js         # Expense-group list
-│   ├── CreateGroupScreen.js    # Expense-group creation
-│   ├── GroupDetailsScreen.js   # Expenses and settlements
-│   ├── CashbackScreen.js       # Cashback-group list
-│   ├── CreateCashbackGroup.js  # Cashback-group creation
-│   └── CashbackGroupDetails.js # Transactions and cashback totals
-├── components/
-│   └── InputModal.js           # Reusable text-input modal
-├── assets/                     # App and splash icons
-├── app.json                    # Expo application configuration
-└── package.json                # Scripts and dependencies
-```
-
-For a description of the main data models and screen responsibilities, see [PROJECT.md](PROJECT.md).
-
-## Available scripts
+Scan the QR code with Expo Go, or press `a` for an Android emulator. On first launch, choose a PIN.
 
 | Command | Description |
 | --- | --- |
@@ -80,8 +56,179 @@ For a description of the main data models and screen responsibilities, see [PROJ
 | `npm run android` | Start Expo and open Android. |
 | `npm run ios` | Start Expo and open iOS. |
 | `npm run web` | Start Expo for the web. |
+| `npm test` | Run the unit and screen tests (Jest). |
+| `npm run test:watch` | Re-run tests on file changes. |
+
+## Setting up cashback tracking
+
+1. Open **Cashback → Cards & cycles → Add a card** and pick your card (and its variant or Prime status where asked).
+2. On the card screen:
+   - Enter the **last four digits** if you want alerts matched automatically. They are stored only on this phone.
+   - Set the **billing-cycle start day**. HDFC Millennia has no default, so you must enter it.
+   - Enable **UPI** for a RuPay card that you use for UPI payments.
+3. Tap **Create current cycle**.
+4. Add transactions manually, or turn on automatic capture.
+
+Card rates and caps are starting values from the issuers' published terms (links are on each card screen). Issuers change them, so check them and tap **Mark terms verified today**. After you edit a card, use **Apply to open cycles** to update cycles that already exist.
+
+## Automatic capture on Android
+
+Notification capture uses a custom native module (`modules/notification-capture`). **Expo Go cannot run it**, so you need a development build.
+
+### Build and install
+
+With EAS (builds in the cloud; no Android Studio needed):
+
+```bash
+npm install -g eas-cli
+eas login
+eas build --profile development --platform android
+```
+
+Install the APK it produces, then start the dev server for that build:
+
+```bash
+npx expo start --dev-client
+```
+
+Alternatively, to build locally, install Android Studio (which provides the JDK and SDK) and run:
+
+```bash
+npx expo run:android
+```
+
+### Turn it on
+
+Open **Cashback → Settings → Capture & Privacy**:
+
+1. Switch on **Capture transaction alerts** and accept the explanation.
+2. **Sideloaded APK on Android 13 or later:** open **App info → ⋮ → Allow restricted settings** first. Android blocks notification access for sideloaded apps until you do this.
+3. Tap **Open notification access** and enable SplitVCM.
+4. Tap **Open battery settings** and set SplitVCM to *Unrestricted* / *Don't optimise*. Xiaomi, Oppo, Vivo, and Samsung phones otherwise stop the listener.
+5. Check **Allowed apps**. Messages, Gmail, Outlook, and common bank apps are allowed by default. If a bank app posts transaction alerts but isn't on the list, its package name appears under *Transaction-like alerts seen from* with an **Allow** button.
+
+Captured alerts are processed each time the app opens or returns to the foreground. Use **Process captured alerts now** to process them immediately.
+
+### How an alert is handled
+
+```text
+notification ──► native listener (allowlisted app + looks like a transaction?) ──► native queue
+                                                                                      │
+app opens / foregrounds ◄─────────────────────────────────────────────────────────────┘
+  └─► parse (amount, merchant, card suffix, date, UPI handle)
+        ├─ OTP / failed / balance-only / bill payment / cashback posting / promo /
+        │  bank-account (non-card) debit ─► dropped (account debits can be enabled)
+        ├─ duplicate of an earlier alert (±10 min) ─► merged, not recorded again
+        └─ decide
+             ├─ one card, one open cycle, one category, known rate, high confidence ─► added automatically
+             └─ anything uncertain ─► Needs review inbox (with a suggestion)
+```
+
+An alert goes to review, rather than being added automatically, if any of the following apply:
+
+- It is a credit or refund.
+- The amount is missing.
+- The alert was only partly understood (for example, it had no date).
+- No card or several cards match.
+- There is no open cycle or several.
+- The merchant is unknown or matches several categories.
+- It matches an exclusion rule.
+- The category's rate isn't set.
+- It looks like a transaction you already entered manually.
+
+### Testing without a build
+
+Under **Capture & Privacy → Paste an alert to test**, paste any SMS or notification text and choose its source. It goes through exactly the same pipeline.
+
+## Tests
+
+```bash
+npm test
+```
+
+The suites cover:
+
+| Suite | What it checks |
+| --- | --- |
+| `src/cashback/__tests__/parser.test.js` | Sample alerts per bank (`__tests__/fixtures/alerts.js`), ignored message types, date formats, UPI handles |
+| `cycles.test.js` | Billing and calendar cycles, start days 29–31, year boundaries, IST midnight |
+| `compute.test.js` | Rates, category caps, cap pools, group cap, refunds, rounding modes, arrival order |
+| `matcher.test.js` | Auto-assign vs each review reason, learned rules, UPI matching |
+| `inbox.test.js` | Capture pipeline, duplicates across sources, all review actions, retention |
+| `groups.test.js` | Edit, move, and delete with recalculation; category deletion protection |
+| `templates.test.js` | Card catalogue, variants, cycle groups, next-cycle offers |
+| `migration.test.js` | Upgrading data from the original app version, backup export and import |
+| `store.test.js` | One-time migration, serialised writes |
+| `src/auth/__tests__/pin.test.js` | PIN rules, SecureStore, legacy PIN migration |
+| `screens/__tests__/`, `__tests__/App.test.js` | Review inbox, group screen, and PIN setup rendering |
+
+Tests run in the `Asia/Kolkata` time zone (`jest.global-setup.js`) so cycle boundaries match the phone.
+
+**Add your own alerts.** Real bank wording varies. Add anonymised copies of your alerts (remove your name, balances, and reference numbers) to `src/cashback/__tests__/fixtures/alerts.js`, along with the values you expect, and run `npm test`. If one fails, adjust the patterns in `src/cashback/parser.js`.
+
+The Kotlin listener cannot be unit-tested here. Check it on a device with a development build.
+
+## Data and storage
+
+All data is local. AsyncStorage keys:
+
+| Key | Contents |
+| --- | --- |
+| `groups` | Expense groups |
+| `cashbacks` | Cashback groups (cycle and manual) |
+| `cardTemplates` | Your cards |
+| `captureCandidates` | Captured alerts and their review status |
+| `captureSettings` | Capture on/off, consent, allowed apps, retention |
+| `cashbackSchemaVersion` | Data format version (currently `1`) |
+| `cashbacks_backup_v0` | Your cashback data as it was before the one-time upgrade |
+
+The PIN is stored in SecureStore, not AsyncStorage. The native listener keeps its queue in a separate SharedPreferences file (`splitvcm_capture`) until the app reads it.
+
+When you update from the original version, existing cashback groups are upgraded once: categories get IDs, and totals are recalculated. The original data is kept under `cashbacks_backup_v0`. Totals can change slightly because the old running totals could drift after deletions.
+
+## Project structure
+
+```text
+.
+├── App.js                         # PIN/biometric unlock, navigation, capture sync, review prompt
+├── screens/
+│   ├── GroupsScreen.js            # Expense-group list
+│   ├── CreateGroupScreen.js       # Expense-group creation
+│   ├── GroupDetailsScreen.js      # Expenses and settlements
+│   ├── CashbackScreen.js          # Cashback-group list, review/cards/settings entry points
+│   ├── CreateCashbackGroup.js     # Manual cashback group
+│   ├── CashbackGroupDetails.js    # Cycle totals, caps, categories, transactions
+│   └── cashback/
+│       ├── CardTemplatesScreen.js # Cards, current/next cycle creation
+│       ├── TemplateEditor.js      # Card settings, cap pools, learned rules
+│       ├── CategoryEditor.js      # Category edit/delete (group or card)
+│       ├── TransactionEditor.js   # Edit or move a transaction
+│       ├── ReviewInbox.js         # Needs review inbox
+│       └── CaptureSettings.js     # Capture setup, allowlist, paste test, privacy, backup
+├── src/
+│   ├── auth/pin.js                # SecureStore PIN
+│   └── cashback/                  # Pure logic (all unit-tested) + store
+│       ├── compute.js             # computeCycle: derived cashback
+│       ├── cycles.js, dates.js    # Cycle date maths
+│       ├── templates.js           # Card catalogue, cycle groups
+│       ├── parser.js              # Alert parser
+│       ├── matcher.js             # Auto-assign vs review decision
+│       ├── dedupe.js              # Cross-source duplicate detection
+│       ├── inbox.js               # Capture pipeline, review actions, retention
+│       ├── groups.js              # Transaction/category operations
+│       ├── migration.js, backup.js
+│       ├── store.js               # AsyncStorage-backed state with serialised writes
+│       └── capture.js             # Bridges the native queue to the pipeline
+├── modules/notification-capture/  # Android NotificationListenerService (Expo module, Kotlin)
+├── components/                    # InputModal, cashback UI helpers
+├── app.json                       # Expo config (allowBackup: false)
+└── jest.config.js
+```
+
+See [PROJECT.md](PROJECT.md) for data models and [CASHBACK_AUTOMATION_PLAN.md](CASHBACK_AUTOMATION_PLAN.md) for the design and its remaining open questions.
 
 ## Notes
 
-- This project does not currently define automated tests or linting scripts.
 - The Android application identifier is `com.sbchethan235.SplitVCM`.
+- Automatic capture is Android-only. iOS doesn't let apps read other apps' notifications.
+- Direct SMS reading and mailbox access (plan Phase 4) are deliberately not implemented.

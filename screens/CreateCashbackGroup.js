@@ -1,43 +1,36 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Button,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useState } from "react";
+import { Alert, ScrollView, Text, View } from "react-native";
 
+import { Btn, Field, ui } from "../components/cashback/ui";
+import { withComputed } from "../src/cashback/compute";
+import { newId } from "../src/cashback/ids";
+import { updateState } from "../src/cashback/store";
+
+// Manual (non-template) cashback group, as before. Every manual group also
+// gets a 0% / excluded category.
 export default function CreateCashbackGroup({ navigation }) {
   const [groupName, setGroupName] = useState("");
-  const [groupCap, setGroupCap] = useState(0);
+  const [groupCap, setGroupCap] = useState("");
   const [categories, setCategories] = useState([]);
   const [categoryName, setCategoryName] = useState("");
   const [percentage, setPercentage] = useState("");
   const [cap, setCap] = useState("");
 
-  // Load existing groups
-  const [groups, setGroups] = useState([]);
-  useEffect(() => {
-    (async () => {
-      const storedGroups = await AsyncStorage.getItem("cashbacks");
-      if (storedGroups) setGroups(JSON.parse(storedGroups));
-    })();
-  }, []);
-
   const addCategory = () => {
-    if (!categoryName || !percentage)
+    if (!categoryName || percentage === "" || isNaN(percentage))
       return Alert.alert("Enter category and percentage");
     setCategories((prev) => [
       ...prev,
       {
+        id: newId("cat"),
         name: categoryName,
         percentage: parseFloat(percentage),
         cap: cap ? parseFloat(cap) : null,
-        totalCashback: 0,
-        totalSpent: 0,
+        keywords: [],
+        mccNotes: "",
+        active: true,
+        excluded: false,
+        isDefault: prev.length === 0,
       },
     ]);
     setCategoryName("");
@@ -47,88 +40,63 @@ export default function CreateCashbackGroup({ navigation }) {
 
   const createGroup = async () => {
     if (!groupName) return Alert.alert("Enter group name");
-    const newGroup = {
-      id: Date.now(),
+    const group = withComputed({
+      id: newId("group"),
       name: groupName,
-      categories,
+      templateId: null,
+      cycleStart: null,
+      cycleEnd: null,
+      status: "open",
+      categories: [
+        ...categories,
+        {
+          id: newId("cat"), name: "0% / excluded", percentage: 0, cap: null, keywords: [],
+          mccNotes: "", active: true, excluded: true, isDefault: false,
+        },
+      ],
+      capPools: [],
+      groupCap: groupCap ? parseFloat(groupCap) : null,
+      rounding: "per-transaction-floor",
+      rewardValue: 1,
       transactions: [],
-      groupCap,
-      totalCashback: 0,
-    };
-    const updatedGroups = [...groups, newGroup];
-    await AsyncStorage.setItem("cashbacks", JSON.stringify(updatedGroups));
+      createdAt: new Date().toISOString(),
+    });
+    await updateState((s) => ({ ...s, groups: [...s.groups, group] }));
     navigation.goBack();
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Cashback Group Name</Text>
-      <TextInput
-        style={styles.input}
+    <ScrollView contentContainerStyle={ui.scroll} keyboardShouldPersistTaps="handled">
+      <Field
+        label="Cashback Group Name"
         value={groupName}
         onChangeText={setGroupName}
         placeholder="e.g. Credit Card A"
-        placeholderTextColor="#888"
       />
-      <TextInput
-        style={styles.input}
+      <Field
+        label="Group cap (optional)"
         value={groupCap}
         onChangeText={setGroupCap}
-        placeholder="cap (optional)"
-        placeholderTextColor="#888"
+        placeholder="Leave blank for no cap"
         keyboardType="numeric"
       />
 
-      <Text style={styles.label}>Add Categories</Text>
-      <TextInput
-        style={styles.input}
-        value={categoryName}
-        onChangeText={setCategoryName}
-        placeholder="Category name (e.g. Recharge)"
-        placeholderTextColor="#888"
-      />
-      <TextInput
-        style={styles.input}
-        value={percentage}
-        onChangeText={setPercentage}
-        placeholder="Percentage (e.g. 10)"
-        placeholderTextColor="#888"
-        keyboardType="numeric"
-      />
-      <TextInput
-        style={styles.input}
-        value={cap}
-        onChangeText={setCap}
-        placeholder="Cap (optional)"
-        placeholderTextColor="#888"
-        keyboardType="numeric"
-      />
-      <Button title="Add Category" onPress={addCategory} />
+      <Text style={[ui.title, { marginTop: 16 }]}>Add Categories</Text>
+      <Field value={categoryName} onChangeText={setCategoryName} placeholder="Category name (e.g. Recharge)" style={{ marginTop: 6 }} />
+      <Field value={percentage} onChangeText={setPercentage} placeholder="Percentage (e.g. 10)" keyboardType="numeric" style={{ marginTop: 6 }} />
+      <Field value={cap} onChangeText={setCap} placeholder="Cap (optional)" keyboardType="numeric" style={{ marginTop: 6 }} />
+      <Btn title="Add Category" onPress={addCategory} />
 
-      <FlatList
-        data={categories}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <Text>
-            {item.name} - {item.percentage}%{" "}
-            {item.cap ? `(cap ₹${item.cap})` : ""}
+      <View style={{ marginVertical: 10 }}>
+        {categories.map((item) => (
+          <Text key={item.id}>
+            {item.name} - {item.percentage}% {item.cap ? `(cap ₹${item.cap})` : ""}
           </Text>
-        )}
-      />
+        ))}
+        <Text style={ui.small}>A "0% / excluded" category is added automatically.</Text>
+      </View>
 
-      <Button title="Create Group" onPress={createGroup} />
-    </View>
+      <Btn title="Create Group" kind="success" onPress={createGroup} />
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  label: { fontWeight: "bold", marginTop: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 8,
-    marginVertical: 6,
-    borderRadius: 6,
-  },
-});

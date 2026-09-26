@@ -14,6 +14,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "allowBackup": false,
       "package": "com.sbchethan235.SplitVCM"
     },
     "web": {
