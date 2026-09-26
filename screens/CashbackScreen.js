@@ -1,100 +1,101 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useState } from "react";
-import {
-  Button,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useMemo } from "react";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+import { Banner, Btn, COLORS, money, ui } from "../components/cashback/ui";
+import { formatRange } from "../src/cashback/dates";
+import { pendingCandidates } from "../src/cashback/inbox";
+import { useCashbackState } from "../src/cashback/store";
+import { cyclesToOffer } from "../src/cashback/templates";
 
 export default function CashbackScreen() {
   const navigation = useNavigation();
-  const [cashbackGroups, setCashbackGroups] = useState([]);
+  const state = useCashbackState();
 
-  const loadCashbackGroups = async () => {
-    try {
-      const storedCashbacks = (await AsyncStorage.getItem("cashbacks")) || "[]";
-      // console.log(JSON.stringify(storedCashbacks));
-      if (storedCashbacks) setCashbackGroups(JSON.parse(storedCashbacks));
-    } catch (err) {
-      console.error("Failed to load cashbacks:", err);
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", () => {
-      loadCashbackGroups();
+  const groups = useMemo(() => {
+    if (!state) return [];
+    // Open groups first, newest cycle first.
+    return [...state.groups].sort((a, b) => {
+      if ((a.status === "closed") !== (b.status === "closed")) return a.status === "closed" ? 1 : -1;
+      return (b.cycleStart || b.createdAt || "").localeCompare(a.cycleStart || a.createdAt || "");
     });
+  }, [state]);
 
-    return unsubscribe;
-  }, [navigation]);
+  if (!state) return <Text style={ui.empty}>Loading…</Text>;
+  const pending = pendingCandidates(state).length;
+  const offers = cyclesToOffer(state.templates, state.groups);
 
   return (
     <View style={styles.container}>
-      {/* Top Heading */}
+      <View style={[ui.row, ui.gap, { flexWrap: "wrap" }]}>
+        <Btn small title="Cards & cycles" onPress={() => navigation.navigate("CardTemplates")} />
+        <Btn
+          small
+          kind={pending ? "danger" : "secondary"}
+          title={`Needs review${pending ? ` (${pending})` : ""}`}
+          onPress={() => navigation.navigate("ReviewInbox")}
+        />
+        <Btn small kind="secondary" title="Settings" onPress={() => navigation.navigate("CaptureSettings")} />
+      </View>
+
+      {offers.length > 0 && (
+        <TouchableOpacity onPress={() => navigation.navigate("CardTemplates")}>
+          <Banner kind="warning">
+            New cycle available for {offers.map((o) => o.template.name).join(", ")}. Tap to create it.
+          </Banner>
+        </TouchableOpacity>
+      )}
 
       <FlatList
-        data={cashbackGroups}
-        keyExtractor={(item) => item.id.toString()}
+        style={{ marginTop: 10 }}
+        data={groups}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={styles.groupItem}
-            onPress={() =>
-              navigation.navigate("CashbackGroupDetails", {
-                group: item,
-                loadCashbackGroups,
-              })
-            }
+            style={[styles.groupItem, item.status === "closed" && { opacity: 0.6 }]}
+            onPress={() => navigation.navigate("CashbackGroupDetails", { groupId: item.id })}
           >
             <View style={styles.groupContent}>
               <FontAwesome5 name="coins" size={24} color="#FFD700" />
               <Text style={styles.groupName}>{item.name}</Text>
             </View>
+            {item.cycleStart ? (
+              <Text style={ui.small}>
+                {formatRange(item.cycleStart, item.cycleEnd)}
+                {item.status === "closed" ? " · closed" : ""}
+              </Text>
+            ) : null}
             <Text style={styles.groupTotal}>
               Total Cashback:{" "}
-              <Text style={styles.totalCashback}>
-                ₹{item.totalCashback?.toFixed(0) || 0}{" "}
-              </Text>
+              <Text style={styles.totalCashback}>{money(item.totalCashback || 0)}</Text>
+              {"   "}Spent: <Text style={styles.totalSpent}>{money(item.totalSpent || 0)}</Text>
             </Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={() => (
-          <Text style={styles.emptyText}>No cashback groups found</Text>
+          <Text style={ui.empty}>
+            No cashback groups yet. Add a card under "Cards & cycles", or create a manual group.
+          </Text>
         )}
       />
-      <Button
-        title="Add Cashback Group"
-        onPress={() => navigation.navigate("CreateCashbackGroup")}
-      />
+      <Btn title="Add manual cashback group" onPress={() => navigation.navigate("CreateCashbackGroup")} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  headerItem: { flexDirection: "row", alignItems: "center" },
-  headerText: { fontSize: 18, fontWeight: "bold", marginLeft: 8 },
   groupItem: {
     padding: 12,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: COLORS.border,
     borderRadius: 8,
     marginBottom: 10,
   },
   groupContent: { flexDirection: "row", alignItems: "center" },
-  groupName: { fontSize: 16, fontWeight: "bold", marginLeft: 10 },
+  groupName: { fontSize: 16, fontWeight: "bold", marginLeft: 10, flexShrink: 1 },
   groupTotal: { marginTop: 4, fontWeight: "bold" },
-  totalCashback: { color: "#28A745" },
-  totalSpent: { color: "#fe0000ff" },
-  groupSpent: { marginTop: 4, fontWeight: "bold" },
-  emptyText: { textAlign: "center", marginTop: 50, color: "#999" },
+  totalCashback: { color: COLORS.success },
+  totalSpent: { color: "#a7282e" },
 });

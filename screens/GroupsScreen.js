@@ -28,13 +28,7 @@ export default function GroupsScreen({ navigation }) {
   );
 
   const handleCreateGroup = () => {
-    navigation.navigate("Create Group", { onSave: saveGroup });
-  };
-
-  const saveGroup = async (newGroup) => {
-    const updatedGroups = [...groups, newGroup];
-    setGroups(updatedGroups);
-    await AsyncStorage.setItem("groups", JSON.stringify(updatedGroups));
+    navigation.navigate("Create Group");
   };
 
   return (

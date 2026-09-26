@@ -1,0 +1,523 @@
+<title>SplitVCM cashback engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --paper: #f6f8f7;
+  --surface: #ffffff;
+  --ink: #17211e;
+  --muted: #56655f;
+  --rule: #d8e0dc;
+  --rule-strong: #a9b7b1;
+  --accent: #0b7a62;
+  --accent-soft: #e2f3ee;
+  --native: #5b4bb5;
+  --native-soft: #efedfb;
+  --review: #a86a12;
+  --review-soft: #fbf0dc;
+  --code-bg: #eef2f0;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #111715;
+    --surface: #18201d;
+    --ink: #e4ebe8;
+    --muted: #9aaaa3;
+    --rule: #2a3531;
+    --rule-strong: #4b5a54;
+    --accent: #45c7a4;
+    --accent-soft: #15332b;
+    --native: #a89cf0;
+    --native-soft: #221f3a;
+    --review: #e6ad55;
+    --review-soft: #33270f;
+    --code-bg: #1e2724;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111715;
+  --surface: #18201d;
+  --ink: #e4ebe8;
+  --muted: #9aaaa3;
+  --rule: #2a3531;
+  --rule-strong: #4b5a54;
+  --accent: #45c7a4;
+  --accent-soft: #15332b;
+  --native: #a89cf0;
+  --native-soft: #221f3a;
+  --review: #e6ad55;
+  --review-soft: #33270f;
+  --code-bg: #1e2724;
+}
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 16.5px; line-height: 1.65; padding-inline: 20px; padding-block: 40px 80px; }
+.page { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.1rem; font-weight: 500; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.dek { font-size: 1.2rem; color: var(--muted); max-width: 60ch; }
+header { display: flex; flex-direction: column; gap: 16px; border-bottom: 1px solid var(--rule); padding-bottom: 28px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 500; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+nav.toc ol { margin: 0; padding-left: 1.4em; columns: 2 220px; column-gap: 32px; font-size: 15px; }
+nav.toc li { margin-bottom: 4px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.fact { border-top: 2px solid var(--accent); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.fact strong { font-family: var(--display); font-size: 1.05rem; font-weight: 500; }
+.fact span { font-size: 14px; color: var(--muted); }
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.fig-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+.fig-scroll svg { display: block; width: 100%; min-width: 560px; height: auto; color: var(--ink); font-family: var(--body); }
+figcaption { font-size: 14px; color: var(--muted); max-width: 68ch; }
+figcaption b { color: var(--ink); font-weight: 500; }
+.d-box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.d-native { fill: var(--native-soft); stroke: var(--native); stroke-width: 1; }
+.d-app { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-good { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+.d-review { fill: var(--review-soft); stroke: var(--review); stroke-width: 1.2; }
+.d-line { stroke: currentColor; stroke-width: 1.2; fill: none; }
+.d-dash { stroke: var(--review); stroke-width: 1.2; fill: none; stroke-dasharray: 5 4; }
+.d-t { fill: currentColor; font-size: 13.5px; font-weight: 600; }
+.d-s { fill: var(--muted); font-size: 11.5px; }
+.d-l { fill: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+.d-k { font-size: 12px; font-weight: 600; }
+.d-kn { fill: var(--native); }
+.d-ka { fill: var(--accent); }
+.d-kr { fill: var(--review); }
+.d-num { fill: var(--accent); font-size: 13px; font-family: var(--mono); font-weight: 500; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13.5px; }
+.alert { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.alert .sms { padding: 14px 16px; font-family: var(--mono); font-size: 13.5px; line-height: 1.55; border-bottom: 1px solid var(--rule); background: var(--code-bg); }
+.alert dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; padding: 14px 16px; font-size: 14.5px; }
+.alert dt { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+.alert dd { margin: 0; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.pill.good { background: var(--accent-soft); color: var(--accent); }
+.pill.review { background: var(--review-soft); color: var(--review); }
+.pill.native { background: var(--native-soft); color: var(--native); }
+ol.steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 10px; }
+ol.steps li::marker { font-family: var(--mono); color: var(--accent); }
+ul.plain { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+.note { border-left: 3px solid var(--review); padding: 4px 0 4px 14px; color: var(--ink); }
+footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px; color: var(--muted); }
+@media (max-width: 520px) { body { font-size: 15.5px; } .alert dl { grid-template-columns: 1fr; gap: 2px; } .alert dd { margin-bottom: 8px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<main class="page">
+
+<header>
+  <span class="eyebrow">SplitVCM · system design</span>
+  <h1>How SplitVCM turns a bank SMS into cashback</h1>
+  <p class="dek">The capture pipeline, cashback maths and data model behind the Cashback tab: what runs where, what decides whether a spend is added automatically, and why the numbers always add up.</p>
+  <div class="meta">
+    <span>Branch <b>autom_track</b></span>
+    <span>Updated <b>26 Sep 2026</b></span>
+    <span>Tests <b>323 passing</b></span>
+    <span>Platform <b>Expo SDK 57 · Android</b></span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#glance">At a glance</a></li>
+    <li><a href="#architecture">Where each part runs</a></li>
+    <li><a href="#pipeline">The life of an alert</a></li>
+    <li><a href="#review">Why an alert goes to review</a></li>
+    <li><a href="#cashback">How cashback is calculated</a></li>
+    <li><a href="#data">How the data connects</a></li>
+    <li><a href="#linking">Why a group needs a card</a></li>
+    <li><a href="#timeline">What happens when</a></li>
+    <li><a href="#privacy">Privacy and security</a></li>
+    <li><a href="#code">Code map</a></li>
+    <li><a href="#tests">Tests and open items</a></li>
+  </ol>
+</nav>
+
+<section id="glance">
+  <h2>At a glance</h2>
+  <div class="facts">
+    <div class="fact"><strong>Phone only</strong><span>No server, no account. Data stays in the phone's storage.</span></div>
+    <div class="fact"><strong>Two halves</strong><span>A Kotlin listener collects alerts; the JavaScript app processes them when opened.</span></div>
+    <div class="fact"><strong>Strict auto-add</strong><span>A spend is added automatically only when card, cycle, category and rate are all certain.</span></div>
+    <div class="fact"><strong>Recomputed, not stored</strong><span>Cashback for a whole cycle is recalculated after every change.</span></div>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>Where each part runs</h2>
+  <p class="prose">SplitVCM is split across a process boundary. The <span class="pill native">native</span> half is an Android <code>NotificationListenerService</code> written in Kotlin. Android keeps it running in the background, even when the app is closed. The <span class="pill good">app</span> half is the React Native code, which only runs while SplitVCM is open. A small queue in between lets the two work at different times.</p>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 720 510" role="img" aria-label="Notifications reach the Kotlin listener, which queues allowed transaction alerts; when the app opens, the capture bridge drains the queue into the pipeline, which saves to the store that the screens read.">
+        <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="currentColor"/></marker></defs>
+        <rect class="d-box" x="200" y="16" width="320" height="54" rx="8"/>
+        <text class="d-t" x="360" y="38" text-anchor="middle">SMS, bank app, email alerts</text>
+        <text class="d-s" x="360" y="56" text-anchor="middle">Android notifications</text>
+
+        <rect class="d-native" x="20" y="100" width="680" height="132" rx="14"/>
+        <text class="d-k d-kn" x="36" y="220">Android native module · Kotlin · runs in the background</text>
+        <rect class="d-box" x="60" y="130" width="250" height="64" rx="8"/>
+        <text class="d-t" x="185" y="156" text-anchor="middle">Notification listener</text>
+        <text class="d-s" x="185" y="176" text-anchor="middle">Allowed apps · looks like a spend</text>
+        <rect class="d-box" x="410" y="130" width="250" height="64" rx="8"/>
+        <text class="d-t" x="535" y="156" text-anchor="middle">Capture queue</text>
+        <text class="d-s" x="535" y="176" text-anchor="middle">Own SharedPreferences file</text>
+        <line class="d-line" x1="260" y1="70" x2="260" y2="128" marker-end="url(#a1)"/>
+        <text class="d-l" x="268" y="92">onNotificationPosted</text>
+        <line class="d-line" x1="310" y1="162" x2="408" y2="162" marker-end="url(#a1)"/>
+        <text class="d-l" x="359" y="154" text-anchor="middle">enqueue</text>
+
+        <path class="d-line" d="M535 194 L535 252 L185 252 L185 298" marker-end="url(#a1)"/>
+        <text class="d-l" x="360" y="244" text-anchor="middle">drainQueue() when the app opens</text>
+
+        <rect class="d-app" x="20" y="272" width="680" height="226" rx="14"/>
+        <text class="d-k d-ka" x="36" y="486">SplitVCM app · JavaScript · runs while open</text>
+        <rect class="d-box" x="60" y="300" width="250" height="64" rx="8"/>
+        <text class="d-t" x="185" y="326" text-anchor="middle">Capture bridge</text>
+        <text class="d-s" x="185" y="346" text-anchor="middle">capture.js</text>
+        <rect class="d-box" x="410" y="300" width="250" height="64" rx="8"/>
+        <text class="d-t" x="535" y="326" text-anchor="middle">Alert pipeline</text>
+        <text class="d-s" x="535" y="346" text-anchor="middle">parse · dedupe · decide</text>
+        <rect class="d-box" x="410" y="396" width="250" height="64" rx="8"/>
+        <text class="d-t" x="535" y="422" text-anchor="middle">Store</text>
+        <text class="d-s" x="535" y="442" text-anchor="middle">AsyncStorage · writes in order</text>
+        <rect class="d-box" x="60" y="396" width="250" height="64" rx="8"/>
+        <text class="d-t" x="185" y="422" text-anchor="middle">Screens</text>
+        <text class="d-s" x="185" y="442" text-anchor="middle">Review inbox · cards · groups</text>
+        <line class="d-line" x1="310" y1="332" x2="408" y2="332" marker-end="url(#a1)"/>
+        <text class="d-l" x="359" y="324" text-anchor="middle">raw alerts</text>
+        <line class="d-line" x1="535" y1="364" x2="535" y2="394" marker-end="url(#a1)"/>
+        <text class="d-l" x="545" y="383">updateState</text>
+        <line class="d-line" x1="410" y1="428" x2="312" y2="428" marker-end="url(#a1)"/>
+        <text class="d-l" x="361" y="420" text-anchor="middle">subscribe</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 1.</b> The purple half exists only in the SplitVCM development build, which is why Expo Go always reports zero captured alerts. The queue is a separate file, so the background listener never writes to the app's own storage.</figcaption>
+  </figure>
+  <p class="prose">The listener does as little as possible. It skips apps you haven't allowed, and it skips text without an amount (Rs, INR or ₹) and a spend word (spent, debited, paid…). It also skips an exact re-post of a notification it already queued. Everything else, including the decision about what the alert means, happens in JavaScript, where it can be unit-tested.</p>
+</section>
+
+<section id="pipeline">
+  <h2>The life of an alert</h2>
+  <p class="prose">Every alert, whether it came from the phone's queue or was pasted on the Capture &amp; Privacy screen, goes through the same three questions in <code>inbox.js</code>.</p>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 720 466" role="img" aria-label="An alert is parsed, dropped if it is not a card spend, merged if already seen, added automatically if the match is confident, and otherwise sent to review, where remembering the merchant makes the next one automatic.">
+        <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="currentColor"/></marker>
+        <marker id="a2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="var(--review)"/></marker></defs>
+        <rect class="d-box" x="60" y="16" width="300" height="58" rx="8"/>
+        <text class="d-t" x="210" y="40" text-anchor="middle">Parse alert</text>
+        <text class="d-s" x="210" y="58" text-anchor="middle">amount · merchant · card · date · UPI</text>
+        <rect class="d-box" x="60" y="110" width="300" height="58" rx="8"/>
+        <text class="d-t" x="210" y="134" text-anchor="middle">Is it a card spend?</text>
+        <text class="d-s" x="210" y="152" text-anchor="middle">not OTP, failed, promo, bank account</text>
+        <rect class="d-box" x="60" y="204" width="300" height="58" rx="8"/>
+        <text class="d-t" x="210" y="228" text-anchor="middle">Seen it already?</text>
+        <text class="d-s" x="210" y="246" text-anchor="middle">same card and amount within 10 min</text>
+        <rect class="d-box" x="60" y="298" width="300" height="58" rx="8"/>
+        <text class="d-t" x="210" y="322" text-anchor="middle">Confident match?</text>
+        <text class="d-s" x="210" y="340" text-anchor="middle">one card, cycle, category, known rate</text>
+        <rect class="d-good" x="60" y="392" width="300" height="58" rx="8"/>
+        <text class="d-t" x="210" y="416" text-anchor="middle">Added automatically</text>
+        <text class="d-s" x="210" y="434" text-anchor="middle">no popup · cycle recalculated</text>
+
+        <rect class="d-box" x="460" y="110" width="220" height="58" rx="8"/>
+        <text class="d-t" x="570" y="134" text-anchor="middle">Dropped</text>
+        <text class="d-s" x="570" y="152" text-anchor="middle">never stored</text>
+        <rect class="d-box" x="460" y="204" width="220" height="58" rx="8"/>
+        <text class="d-t" x="570" y="228" text-anchor="middle">Merged</text>
+        <text class="d-s" x="570" y="246" text-anchor="middle">recorded once</text>
+        <rect class="d-review" x="460" y="298" width="220" height="58" rx="8"/>
+        <text class="d-t" x="570" y="322" text-anchor="middle">Needs review</text>
+        <text class="d-s" x="570" y="340" text-anchor="middle">prompt when the app opens</text>
+        <rect class="d-review" x="460" y="392" width="220" height="58" rx="8"/>
+        <text class="d-t" x="570" y="416" text-anchor="middle">You decide</text>
+        <text class="d-s" x="570" y="434" text-anchor="middle">remember merchant: on</text>
+
+        <line class="d-line" x1="210" y1="74" x2="210" y2="108" marker-end="url(#a2)"/>
+        <line class="d-line" x1="210" y1="168" x2="210" y2="202" marker-end="url(#a2)"/>
+        <text class="d-l" x="220" y="189">yes</text>
+        <line class="d-line" x1="210" y1="262" x2="210" y2="296" marker-end="url(#a2)"/>
+        <text class="d-l" x="220" y="283">no</text>
+        <line class="d-line" x1="210" y1="356" x2="210" y2="390" marker-end="url(#a2)"/>
+        <text class="d-l" x="220" y="377">yes</text>
+        <line class="d-line" x1="360" y1="139" x2="458" y2="139" marker-end="url(#a2)"/>
+        <text class="d-l" x="409" y="131" text-anchor="middle">no</text>
+        <line class="d-line" x1="360" y1="233" x2="458" y2="233" marker-end="url(#a2)"/>
+        <text class="d-l" x="409" y="225" text-anchor="middle">yes</text>
+        <line class="d-line" x1="360" y1="327" x2="458" y2="327" marker-end="url(#a2)"/>
+        <text class="d-l" x="409" y="319" text-anchor="middle">no</text>
+        <line class="d-line" x1="570" y1="356" x2="570" y2="390" marker-end="url(#a2)"/>
+        <path class="d-dash" d="M460 421 L420 421 L420 345 L362 345" marker-end="url(#a2r)"/>
+        <text class="d-l" x="414" y="392" text-anchor="end" style="fill: var(--review)">learned rule</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> Only the green path adds a transaction without asking. The dashed line is the feedback loop: a merchant you assign in review is stored as a rule on the card, so its next alert passes "Confident match?" by itself.</figcaption>
+  </figure>
+
+  <h3>A worked example</h3>
+  <div class="alert">
+    <div class="sms">Your HSBC Credit Card ending 5678 has been used for INR 899.00 at BIGBASKET on 14 Sep 2026 at 18:05. Available credit limit INR 1,20,000.</div>
+    <dl>
+      <dt>amount</dt><dd>₹899.00, the first amount in the text</dd>
+      <dt>cardLastFour</dt><dd>5678 → matches the HSBC Live+ card</dd>
+      <dt>merchant</dt><dd>BIGBASKET → keyword of the "10% groceries" category</dd>
+      <dt>occurredAt</dt><dd>14 Sep 2026 18:05 IST → cycle 10 Sep–09 Oct 2026</dd>
+      <dt>confidence</dt><dd>high: amount, merchant, card and date are all present</dd>
+      <dt>result</dt><dd><span class="pill good">added automatically</span> ₹89 cashback (10% of 899, rounded down)</dd>
+    </dl>
+  </div>
+  <p class="prose">An alert that goes to review isn't stuck there. When you add a card's digits, save a card or create a cycle, and each time the app opens, alerts waiting in review are checked again. Ones that are now certain move into their cycle automatically.</p>
+  <p class="prose">If the same spend then arrives by email ("…debited … towards BIGBASKET on 14 Sep 2026"), it has the same card and amount on the same day, so it's merged into the first record instead of being counted twice.</p>
+</section>
+
+<section id="review">
+  <h2>Why an alert goes to review</h2>
+  <p class="prose"><code>matcher.js</code> collects every reason it has for doubt. A single reason is enough to hold the alert back. The review card shows each one in plain words, alongside a suggested group and category.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Reason</th><th>What the app saw</th></tr></thead>
+      <tbody>
+        <tr><td><code>not-debit</code></td><td>A credit or refund. Review offers "Link refund" to the original spend.</td></tr>
+        <tr><td><code>missing-amount</code></td><td>No amount could be read, or it was ₹0.</td></tr>
+        <tr><td><code>low-parser-confidence</code></td><td>Something was missing, usually the date.</td></tr>
+        <tr><td><code>no-card-match</code> / <code>multiple-cards</code></td><td>The last four digits match none or several of your cards. Review offers "Set up card •••• 7342".</td></tr>
+        <tr><td><code>no-open-cycle</code> / <code>multiple-groups</code></td><td>No open cycle group covers the date, or several do. Review offers "Create cycle group".</td></tr>
+        <tr><td><code>unknown-merchant</code></td><td>No keyword or remembered rule matches. The card's default category is suggested.</td></tr>
+        <tr><td><code>ambiguous-category</code></td><td>The merchant matches two categories, for example "Swiggy Instamart".</td></tr>
+        <tr><td><code>excluded-category</code></td><td>The merchant matches a 0% rule such as fuel or rent.</td></tr>
+        <tr><td><code>unknown-rate</code></td><td>The category's rate is blank (HSBC RuPay until you set it).</td></tr>
+        <tr><td><code>possible-duplicate</code></td><td>You already entered the same amount on the same day by hand.</td></tr>
+        <tr><td><code>processing-error</code></td><td>The alert couldn't be processed. It's kept with its original text instead of being lost.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="cashback">
+  <h2>How cashback is calculated</h2>
+  <p class="prose">Cashback is never added up as you go. <code>computeCycle()</code> in <code>compute.js</code> takes a cycle group's transactions, sorts them by date, and runs each one through the same five steps. It does this after every add, edit, move or delete. So a late email alert, a deletion that frees cap room, or a transaction moved to another cycle always gives the same result as if it had been entered in order.</p>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 720 150" role="img" aria-label="Each transaction is sorted by date, multiplied by the category rate, then limited by the category cap, any shared cap pool and the cycle cap; the example second 6000 rupee grocery spend earns 400 rupees because the shared pool has only 400 left.">
+        <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="currentColor"/></marker></defs>
+        <rect class="d-box" x="10" y="20" width="118" height="60" rx="8"/>
+        <text class="d-t" x="69" y="45" text-anchor="middle">Sort by date</text>
+        <text class="d-s" x="69" y="63" text-anchor="middle">then by id</text>
+        <rect class="d-box" x="152" y="20" width="118" height="60" rx="8"/>
+        <text class="d-t" x="211" y="45" text-anchor="middle">Rate × amount</text>
+        <text class="d-s" x="211" y="63" text-anchor="middle">rounded down</text>
+        <rect class="d-box" x="294" y="20" width="118" height="60" rx="8"/>
+        <text class="d-t" x="353" y="45" text-anchor="middle">Category cap</text>
+        <text class="d-s" x="353" y="63" text-anchor="middle">per category</text>
+        <rect class="d-box" x="436" y="20" width="118" height="60" rx="8"/>
+        <text class="d-t" x="495" y="45" text-anchor="middle">Shared pool</text>
+        <text class="d-s" x="495" y="63" text-anchor="middle">across categories</text>
+        <rect class="d-good" x="578" y="20" width="118" height="60" rx="8"/>
+        <text class="d-t" x="637" y="45" text-anchor="middle">Cycle cap</text>
+        <text class="d-s" x="637" y="63" text-anchor="middle">whole card</text>
+        <line class="d-line" x1="128" y1="50" x2="150" y2="50" marker-end="url(#a3)"/>
+        <line class="d-line" x1="270" y1="50" x2="292" y2="50" marker-end="url(#a3)"/>
+        <line class="d-line" x1="412" y1="50" x2="434" y2="50" marker-end="url(#a3)"/>
+        <line class="d-line" x1="554" y1="50" x2="576" y2="50" marker-end="url(#a3)"/>
+        <text class="d-num" x="69" y="112" text-anchor="middle">₹6,000</text>
+        <text class="d-num" x="211" y="112" text-anchor="middle">₹600</text>
+        <text class="d-num" x="353" y="112" text-anchor="middle">₹600</text>
+        <text class="d-num" x="495" y="112" text-anchor="middle">₹400</text>
+        <text class="d-num" x="637" y="112" text-anchor="middle">₹400</text>
+        <text class="d-l" x="69" y="134" text-anchor="middle">2nd spend</text>
+        <text class="d-l" x="211" y="134" text-anchor="middle">10%</text>
+        <text class="d-l" x="353" y="134" text-anchor="middle">no cap</text>
+        <text class="d-l" x="495" y="134" text-anchor="middle">₹400 left of ₹1,000</text>
+        <text class="d-l" x="637" y="134" text-anchor="middle">no cap</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> HSBC Live+ shares one ₹1,000 cap between dining and groceries. A ₹6,000 Swiggy order on 12 Sep earns ₹600. A ₹6,000 Blinkit order on 13 Sep would earn ₹600, but the shared pool has only ₹400 left, so it earns ₹400. Delete the Swiggy order and the Blinkit order goes back up to ₹600.</figcaption>
+  </figure>
+  <ul class="plain prose">
+    <li><b>Refunds</b> are negative transactions linked to the original spend. They take back at most what that category has earned so far.</li>
+    <li><b>0% / excluded</b> categories and categories with a blank rate earn nothing. Every card has a 0% category, so excluded spends still show up in the totals.</li>
+    <li><b>Rounding</b> is a setting on each card: round down each transaction, round down the cycle total, or no rounding.</li>
+    <li><b>Reward points</b> (PhonePe SBI) are converted with an editable reward value, ₹1 per point by default.</li>
+  </ul>
+</section>
+
+<section id="data">
+  <h2>How the data connects</h2>
+  <p class="prose">A card is a template. Each billing cycle gets its own group, copied from the card when you tap "Create current cycle". Transactions live inside a group. A captured alert stays linked to the transaction it created, which is how the transaction editor can show the original SMS.</p>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 720 240" role="img" aria-label="A card template is copied into one cycle group per billing cycle, which holds transactions; a captured alert links to the transaction it created, and learned merchant rules are stored on the card template.">
+        <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="currentColor"/></marker></defs>
+        <rect class="d-box" x="20" y="36" width="190" height="60" rx="8"/>
+        <text class="d-t" x="115" y="61" text-anchor="middle">Card template</text>
+        <text class="d-s" x="115" y="79" text-anchor="middle">digits · cycle · rates · caps</text>
+        <rect class="d-box" x="265" y="36" width="190" height="60" rx="8"/>
+        <text class="d-t" x="360" y="61" text-anchor="middle">Cycle group</text>
+        <text class="d-s" x="360" y="79" text-anchor="middle">10 Sep–09 Oct 2026</text>
+        <rect class="d-good" x="510" y="36" width="190" height="60" rx="8"/>
+        <text class="d-t" x="605" y="61" text-anchor="middle">Transaction</text>
+        <text class="d-s" x="605" y="79" text-anchor="middle">amount · category · date</text>
+        <rect class="d-review" x="510" y="166" width="190" height="60" rx="8"/>
+        <text class="d-t" x="605" y="191" text-anchor="middle">Captured alert</text>
+        <text class="d-s" x="605" y="209" text-anchor="middle">text kept 30 days</text>
+        <rect class="d-review" x="20" y="166" width="190" height="60" rx="8"/>
+        <text class="d-t" x="115" y="191" text-anchor="middle">Learned rule</text>
+        <text class="d-s" x="115" y="209" text-anchor="middle">merchant → category</text>
+        <line class="d-line" x1="210" y1="66" x2="263" y2="66" marker-end="url(#a4)"/>
+        <text class="d-l" x="237" y="28" text-anchor="middle">copies</text>
+        <line class="d-line" x1="455" y1="66" x2="508" y2="66" marker-end="url(#a4)"/>
+        <text class="d-l" x="482" y="28" text-anchor="middle">holds</text>
+        <line class="d-line" x1="605" y1="166" x2="605" y2="98" marker-end="url(#a4)"/>
+        <text class="d-l" x="597" y="136" text-anchor="end">sourceCandidateId</text>
+        <line class="d-line" x1="115" y1="166" x2="115" y2="98" marker-end="url(#a4)"/>
+        <text class="d-l" x="123" y="136">stored on the card</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> A cycle group keeps the card's category IDs, so a rule learned in September still applies in October. Editing a card changes only future cycles unless you tap "Apply to open cycles".</figcaption>
+  </figure>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Storage key</th><th>Holds</th></tr></thead>
+      <tbody>
+        <tr><td><code>cashbacks</code></td><td>Cycle and manual cashback groups, with their transactions</td></tr>
+        <tr><td><code>cardTemplates</code></td><td>Your cards and their learned rules</td></tr>
+        <tr><td><code>captureCandidates</code></td><td>Captured alerts and their review status</td></tr>
+        <tr><td><code>captureSettings</code></td><td>Capture on/off, consent date, allowed apps, retention</td></tr>
+        <tr><td><code>cashbackSchemaVersion</code></td><td>Data format version, currently 1</td></tr>
+        <tr><td><code>cashbacks_backup_v0</code></td><td>Your cashback data as it was before the one-time upgrade</td></tr>
+        <tr><td><code>groups</code></td><td>Expense-split groups (unchanged)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="linking">
+  <h2>Why a group needs a card</h2>
+  <p class="prose">An alert never names a group. It names a card ("HSBC Credit Card <b>xx7342</b>") and a date ("on <b>26/09/26</b>"). So the app finds the group in two hops: the <b>digits</b> find the card, and the <b>date</b> finds that card's open group whose cycle covers the day. A manual group has no digits and no cycle dates, so no alert can reach it.</p>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 720 200" role="img" aria-label="An alert's card digits find the card and its date finds the cycle group; a manual group has no card, so it is only reachable after Track this card automatically links it.">
+        <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="currentColor"/></marker></defs>
+        <rect class="d-review" x="10" y="20" width="190" height="64" rx="8"/>
+        <text class="d-t" x="105" y="46" text-anchor="middle">Alert</text>
+        <text class="d-s" x="105" y="66" text-anchor="middle">xx7342 · 26/09/26</text>
+        <rect class="d-box" x="265" y="20" width="190" height="64" rx="8"/>
+        <text class="d-t" x="360" y="46" text-anchor="middle">Card</text>
+        <text class="d-s" x="360" y="66" text-anchor="middle">•••• 7342 · cycle from 10th</text>
+        <rect class="d-good" x="520" y="20" width="190" height="64" rx="8"/>
+        <text class="d-t" x="615" y="46" text-anchor="middle">Cycle group</text>
+        <text class="d-s" x="615" y="66" text-anchor="middle">10 Sep–09 Oct 2026</text>
+        <line class="d-line" x1="200" y1="52" x2="263" y2="52" marker-end="url(#a5)"/>
+        <text class="d-l" x="231" y="42" text-anchor="middle">digits</text>
+        <line class="d-line" x1="455" y1="52" x2="518" y2="52" marker-end="url(#a5)"/>
+        <text class="d-l" x="486" y="42" text-anchor="middle">date</text>
+        <rect class="d-box" x="265" y="124" width="190" height="64" rx="8" style="stroke-dasharray: 5 4"/>
+        <text class="d-t" x="360" y="150" text-anchor="middle">Manual group</text>
+        <text class="d-s" x="360" y="170" text-anchor="middle">no digits · no cycle</text>
+        <path class="d-line" d="M455 156 L615 156 L615 86" marker-end="url(#a5)"/>
+        <text class="d-l" x="535" y="148" text-anchor="middle">Track this card</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 5.</b> "Track this card automatically" on a manual group creates a card with the group's categories and caps, and makes the group that card's current cycle. From then on it sits in the top row and alerts reach it.</figcaption>
+  </figure>
+  <ul class="plain prose">
+    <li><b>On an existing group:</b> open it, tap <b>Track this card automatically</b> in its Card box, enter the last four digits and the cycle (a statement cycle with its start day, or calendar month), and tap <b>Start tracking</b>. Existing transactions stay.</li>
+    <li><b>On a new manual group:</b> fill in the optional card fields when creating it.</li>
+    <li><b>From an alert:</b> a review item for an unknown card has a <b>Set up card •••• 7342</b> button that fills in the digits for you.</li>
+    <li><b>The first alert from each merchant still asks once</b>, because a manual category has no merchant keywords. Keep <b>Remember</b> on, or add keywords to the category, and later alerts from that merchant are added automatically.</li>
+  </ul>
+</section>
+
+<section id="timeline">
+  <h2>What happens when</h2>
+  <p class="prose">A card spend on a normal day, from the phone buzzing to the number on the Cashback tab:</p>
+  <ol class="steps prose">
+    <li>The bank sends an SMS and Messages posts a notification. The Kotlin listener sees it within a second, even if SplitVCM is closed, and adds it to the capture queue.</li>
+    <li>Later, you open SplitVCM. The app asks for your fingerprint, or your PIN if that fails.</li>
+    <li>After unlocking, <code>App.js</code> syncs the capture settings to the listener, drains the queue, and runs every alert through the pipeline. Old captured text past its retention period is cleared at the same time.</li>
+    <li>Alerts already waiting in review are checked again in case a card or cycle now exists for them.</li>
+    <li>Clear alerts are added to their cycle silently. If any need review, one "Needs review" prompt appears with "Review now" and "Later".</li>
+    <li>Whenever you return to the app, the same sync runs again. The prompt reappears only if a new alert went to review, not every time you come back from Android settings.</li>
+  </ol>
+</section>
+
+<section id="privacy">
+  <h2>Privacy and security</h2>
+  <ul class="plain prose">
+    <li><b>No SMS permission.</b> The app reads notifications only from apps on your allowed list, and only after you've agreed on the consent screen and granted notification access in Android.</li>
+    <li><b>Nothing leaves the phone.</b> Android cloud backup is off (<code>allowBackup: false</code>). The JSON export is the only way data moves, and it leaves out captured text unless you ask for it.</li>
+    <li><b>Captured text expires.</b> The original alert text is deleted 30 days after review (this is configurable), and resolved alerts are removed after 180 days. "Delete all captured text now" clears it immediately.</li>
+    <li><b>PIN in the keystore.</b> The PIN is stored in SecureStore, you choose it on first run, and five wrong tries lock entry for 30 seconds. The old built-in PIN no longer works.</li>
+    <li><b>Card digits are optional.</b> They're only used for matching and stay on the phone.</li>
+    <li><b>Installing the APK.</b> Google Play Protect's fraud protection in India blocks sideloaded apps that read notifications when they're opened from a browser or file manager. Install with <code>adb install</code> from a computer, or turn Play Protect scanning off just for the install.</li>
+  </ul>
+</section>
+
+<section id="code">
+  <h2>Code map</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Part</th><th>File</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td>Listener</td><td><code>modules/notification-capture/android/…/CaptureListenerService.kt</code></td><td>Filter and queue notifications; count what it saw for Capture status</td></tr>
+        <tr><td>Queue</td><td><code>CaptureStore.kt</code></td><td>Queue, allowed apps, diagnostics counters</td></tr>
+        <tr><td>JS wrapper</td><td><code>modules/notification-capture/index.js</code></td><td>Safe no-ops in Expo Go and iOS</td></tr>
+        <tr><td>Bridge</td><td><code>src/cashback/capture.js</code></td><td>Drain queue, run pipeline, paste-to-test</td></tr>
+        <tr><td>Parser</td><td><code>src/cashback/parser.js</code></td><td>Read amount, merchant, card, date, UPI; drop non-spends</td></tr>
+        <tr><td>Duplicates</td><td><code>src/cashback/dedupe.js</code></td><td>Same spend from SMS, app and email</td></tr>
+        <tr><td>Decision</td><td><code>src/cashback/matcher.js</code></td><td>Auto-add or review, with reasons</td></tr>
+        <tr><td>Pipeline</td><td><code>src/cashback/inbox.js</code></td><td>Ingest, review actions, refunds, retention</td></tr>
+        <tr><td>Maths</td><td><code>src/cashback/compute.js</code></td><td>Recalculate a cycle from scratch</td></tr>
+        <tr><td>Cards</td><td><code>src/cashback/templates.js</code>, <code>cycles.js</code></td><td>Six built-in cards, cycle dates, next-cycle offers</td></tr>
+        <tr><td>Storage</td><td><code>src/cashback/store.js</code>, <code>migration.js</code></td><td>Ordered writes, one-time upgrade of old data</td></tr>
+        <tr><td>Screens</td><td><code>screens/cashback/*.js</code></td><td>Review inbox, cards, editors, Track card, capture &amp; privacy</td></tr>
+        <tr><td>Card linking</td><td><code>trackGroupWithCard</code> in <code>templates.js</code></td><td>Turn a manual group into a tracked card</td></tr>
+        <tr><td>Dropdown</td><td><code>Select</code> in <code>components/cashback/ui.js</code></td><td>In-app picker with fixed colours, so dark mode can't blank it</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tests">
+  <h2>Tests and open items</h2>
+  <p class="prose">323 tests in 24 files run with <code>npm test</code>, in the Asia/Kolkata time zone so cycle boundaries match the phone. About 96% of lines are covered.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Area</th><th class="num">Tests</th><th>Covers</th></tr></thead>
+      <tbody>
+        <tr><td>Parser</td><td class="num">33</td><td>Sample alerts per bank, including real HSBC wording; ignored types; date and time formats</td></tr>
+        <tr><td>Negative cases</td><td class="num">56</td><td>Things that must not happen: no auto-add when unsure, no false merges, bad input rejected</td></tr>
+        <tr><td>Decision and pipeline</td><td class="num">45</td><td>Every review reason, duplicates, review actions, retention, re-checking waiting alerts</td></tr>
+        <tr><td>Maths, cycles, cards, transactions</td><td class="num">64</td><td>Caps, pools, refunds, rounding, cycle dates, card catalogue, edit and move, linking a group to a card</td></tr>
+        <tr><td>Storage, backup, capture</td><td class="num">33</td><td>Upgrade, ordered writes, export/import, native queue, Capture status</td></tr>
+        <tr><td>Screens and app</td><td class="num">78</td><td>Every cashback screen, the dropdown, expense-split screens, PIN setup, review prompt</td></tr>
+        <tr><td>PIN and expense split</td><td class="num">14</td><td>PIN rules and storage, settlement maths</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note prose"><b>Verified on a phone:</b> the development build and the preview APK install and run, and a real HSBC SMS was captured from Google Messages into the review inbox. The tests don't check how Android draws screens: the dark-mode dropdown bug was found on the device. So each new build still gets a quick look on the phone.</p>
+</section>
+
+<footer>SplitVCM · generated from the <code>autom_track</code> branch on 26 Sep 2026. Card rates and caps are starting values from issuer terms and can be edited in the app.</footer>
+
+</main>

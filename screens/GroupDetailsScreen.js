@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -12,6 +11,9 @@ import {
   View,
 } from "react-native";
 import Icon from "react-native-vector-icons/EvilIcons"; // Import EvilIcons for trash icon and close icon
+
+import { Select } from "../components/cashback/ui";
+import { calculateSettlements, calculateTotals, formatSettlements } from "../src/groups/settlement";
 
 export default function GroupDetailsScreen({ route, navigation }) {
   const { group } = route.params;
@@ -122,48 +124,11 @@ export default function GroupDetailsScreen({ route, navigation }) {
     );
   };
 
-  const calculateTotals = () => {
-    let total = 0;
-    const paidBy = {};
-    items.forEach((item) => {
-      if (!item.deleted) {
-        const amount = parseFloat(item.amount);
-        total += amount;
-        paidBy[item.payer] = (paidBy[item.payer] || 0) + amount;
-      }
-    });
-    return { total, paidBy };
-  };
-
   const settleGroup = () => {
-    const { total, paidBy } = calculateTotals();
-    const perPerson = total / group.members.length;
-    const balances = group.members.map((member) => ({
-      member,
-      balance: (paidBy[member] || 0) - perPerson,
-    }));
-    const settlements = [];
-    const creditors = balances.filter((b) => b.balance > 0);
-    const debtors = balances.filter((b) => b.balance < 0);
-
-    while (debtors.length && creditors.length) {
-      const debtor = debtors[0];
-      const creditor = creditors[0];
-      const settleAmount = Math.min(-debtor.balance, creditor.balance);
-      settlements.push({
-        from: debtor.member,
-        to: creditor.member,
-        amount: settleAmount.toFixed(2),
-      });
-      debtor.balance += settleAmount;
-      creditor.balance -= settleAmount;
-      if (debtor.balance === 0) debtors.shift();
-      if (creditor.balance === 0) creditors.shift();
-    }
-
+    const settlements = calculateSettlements(members, items);
     Alert.alert(
       "Settlements",
-      JSON.stringify(settlements, null, 2),
+      formatSettlements(settlements),
       [
         {
           text: "Cancel",
@@ -185,7 +150,7 @@ export default function GroupDetailsScreen({ route, navigation }) {
     );
   };
 
-  const { total, paidBy } = calculateTotals();
+  const { total, paidBy } = calculateTotals(items);
 
   return (
     <View style={styles.container}>
@@ -196,6 +161,8 @@ export default function GroupDetailsScreen({ route, navigation }) {
         <TouchableOpacity
           style={styles.deleteGroupButton}
           onPress={deleteGroup}
+          accessibilityRole="button"
+          accessibilityLabel="Delete group"
         >
           <Icon name="close" size={30} color="#dc3545" />
         </TouchableOpacity>
@@ -209,15 +176,19 @@ export default function GroupDetailsScreen({ route, navigation }) {
         <Button
           title="Details"
           onPress={() =>
-            Alert.alert("Details", JSON.stringify(paidBy, null, 2))
+            Alert.alert(
+              "Details",
+              Object.entries(paidBy).map(([payer, amount]) => `${payer} paid ₹${amount.toFixed(2)}`).join("\n") ||
+                "No expenses yet."
+            )
           }
-          color="#007BFf"
+          color="#007BFF"
           style={styles.button}
         />
         <Button
           title="Settle"
           onPress={settleGroup}
-          color="#007BF"
+          color="#007BFF"
           style={styles.button}
         />
       </View>
@@ -239,6 +210,8 @@ export default function GroupDetailsScreen({ route, navigation }) {
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => deleteItem(index)}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${item.name || "item"}`}
               >
                 <Icon name="trash" size={25} color="#dc3545" />
               </TouchableOpacity>
@@ -249,32 +222,27 @@ export default function GroupDetailsScreen({ route, navigation }) {
       {isAdding ? (
         <View style={styles.addItem}>
           <TextInput
+            placeholderTextColor="#888"
             placeholder="Item Name"
             value={newItem.name}
             onChangeText={(text) => setNewItem({ ...newItem, name: text })}
             style={styles.input}
           />
           <TextInput
+            placeholderTextColor="#888"
             placeholder="Amount"
             value={newItem.amount}
             onChangeText={(text) => setNewItem({ ...newItem, amount: text })}
             keyboardType="numeric"
             style={styles.input}
           />
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={newItem.payer}
-              onValueChange={(value) =>
-                setNewItem({ ...newItem, payer: value })
-              }
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Payer" value="" />
-              {members.map((member, index) => (
-                <Picker.Item key={index} label={member} value={member} />
-              ))}
-            </Picker>
-          </View>
+          <Select
+            label="Paid by"
+            placeholder="Select payer"
+            value={newItem.payer || null}
+            onChange={(value) => setNewItem({ ...newItem, payer: value })}
+            options={members.map((member) => ({ label: member, value: member }))}
+          />
           <TouchableOpacity style={styles.actionButton} onPress={addItem}>
             <Text style={styles.actionButtonText}>Add Item</Text>
           </TouchableOpacity>
@@ -367,6 +335,8 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 40,
+    color: "#000",
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,
