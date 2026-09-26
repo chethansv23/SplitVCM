@@ -61,8 +61,9 @@ export const merchantFromVpa = (vpa) => {
 const extractMerchant = (text) => {
   const patterns = [
     /\binfo[:\s]+(.+?)(?:\.\s|\s+avl|\s+available|$)/i,
-    /\bat\s+(.+?)(?=\s+on\s+\d|\s+on\s+\w{3}|\s+dated|\s+via|\s+using|\s+ref|\s+txn|\s+avl|\s+available|\.\s|\.$|,|$)/i,
-    /\btowards\s+(.+?)(?=\s+on\s+|\s+ref|\.\s|\.$|,|$)/i,
+    // "used at MERCHANT for INR 867.00 on …" (HSBC) stops at "for INR".
+    /\bat\s+(.+?)(?=\s+for\s+(?:rs\.?|inr|₹)|\s+on\s+\d|\s+on\s+\w{3}|\s+dated|\s+via|\s+using|\s+ref|\s+txn|\s+avl|\s+available|\.\s|\.$|,|;|$)/i,
+    /\btowards\s+(.+?)(?=\s+for\s+(?:rs\.?|inr|₹)|\s+on\s+|\s+ref|\.\s|\.$|,|;|$)/i,
     /\bto\s+(?!vpa\b)([a-z][\w&' ]{2,40}?)(?=\s+on\s+|\s+ref|\s+via|\.\s|\.$|,|$)/i,
   ];
   for (const re of patterns) {

@@ -39,6 +39,12 @@ export const DEBIT_ALERTS = [
     expected: { amount: 150, cardLastFour: "9876", day: "2026-09-20" },
   },
   {
+    // Real HSBC wording from a device (digits and balances changed).
+    name: "HSBC card SMS: 'used at MERCHANT for INR'",
+    text: "HSBC Credit Card xx5678 used at TATA 1MG HEALTHCARE for INR 867.00 on 26/09/26. Avl limit INR 150000.00; due INR 4000.00. Call +914000000000 to report.",
+    expected: { amount: 867, cardLastFour: "5678", merchant: "TATA 1MG HEALTHCARE", day: "2026-09-26" },
+  },
+  {
     name: "Email notification",
     title: "Transaction alert for your HDFC Bank Credit Card",
     text: "Dear Customer, Rs.1250.00 has been debited from your HDFC Bank Credit Card ending 1234 towards BOOKMYSHOW on 23 Sep, 2026 at 10:31:12.",

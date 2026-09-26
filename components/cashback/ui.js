@@ -1,6 +1,8 @@
-import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
 import {
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -90,19 +92,56 @@ export function Toggle({ label, value, onValueChange, hint }) {
   );
 }
 
-// options: [{ label, value }]
+// options: [{ label, value }]. A tappable field that opens a list. It draws
+// its own colours, unlike the native Android picker, which follows the
+// phone's dark mode and showed white text on the white field.
 export function Select({ label, value, onChange, options, placeholder = "Select…" }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+  const choose = (v) => {
+    setOpen(false);
+    onChange(v);
+  };
   return (
     <View>
       {label ? <Text style={s.label}>{label}</Text> : null}
-      <View style={s.pickerBox}>
-        <Picker selectedValue={value ?? ""} onValueChange={(v) => onChange(v === "" ? null : v)}>
-          <Picker.Item label={placeholder} value="" color="#888" />
-          {options.map((o) => (
-            <Picker.Item key={String(o.value)} label={o.label} value={o.value} />
-          ))}
-        </Picker>
-      </View>
+      <TouchableOpacity
+        style={s.selectBox}
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={label || placeholder}
+        accessibilityValue={{ text: selected ? selected.label : placeholder }}
+      >
+        <Text style={[s.selectText, !selected && s.selectPlaceholder]} numberOfLines={2}>
+          {selected ? selected.label : options.length ? placeholder : "Nothing to choose yet"}
+        </Text>
+        <Text style={s.selectChevron} accessibilityElementsHidden importantForAccessibility="no">▾</Text>
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
+          <Pressable style={s.sheet} onPress={() => {}}>
+            <Text style={s.sheetTitle}>{label || placeholder}</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {options.length === 0 ? <Text style={s.selectPlaceholder}>Nothing to choose yet</Text> : null}
+              {options.map((o) => {
+                const isSelected = o.value === value;
+                return (
+                  <TouchableOpacity
+                    key={String(o.value)}
+                    style={[s.option, isSelected && s.optionSelected]}
+                    onPress={() => choose(o.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                  >
+                    <Text style={[s.optionText, isSelected && s.optionTextSelected]}>{o.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <Btn kind="secondary" title="Cancel" onPress={() => setOpen(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -196,7 +235,27 @@ const s = StyleSheet.create({
   hint: { fontSize: 12, color: COLORS.muted },
   toggleRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
   toggleLabel: { fontSize: 15, color: "#333" },
-  pickerBox: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, backgroundColor: "#fff" },
+  selectBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    minHeight: 48,
+  },
+  selectText: { flex: 1, color: "#000", fontSize: 15 },
+  selectPlaceholder: { color: "#888" },
+  selectChevron: { color: "#555", fontSize: 16, marginLeft: 8 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 24 },
+  sheet: { backgroundColor: "#fff", borderRadius: 10, padding: 16, gap: 4 },
+  sheetTitle: { fontSize: 16, fontWeight: "bold", color: "#000", marginBottom: 8 },
+  option: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: 6 },
+  optionSelected: { backgroundColor: "#e7f1ff" },
+  optionText: { color: "#000", fontSize: 15 },
+  optionTextSelected: { color: COLORS.primary, fontWeight: "bold" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 6 },
   chip: { borderWidth: 1, borderColor: COLORS.primary, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
   chipSelected: { backgroundColor: COLORS.primary },

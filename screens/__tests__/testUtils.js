@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act } from "@testing-library/react-native";
+import { act, fireEvent, screen } from "@testing-library/react-native";
 import { Alert } from "react-native";
 
 import { DEFAULT_SETTINGS } from "../../src/cashback/inbox";
@@ -41,4 +41,12 @@ export const mockAlerts = () => {
     },
     restore: () => spy.mockRestore(),
   };
+};
+
+// Opens a Select by its label and taps an option. The chosen label can also
+// appear in the closed field, so the option in the open list is the last match.
+export const choose = async (fieldLabel, optionText) => {
+  await fireEvent.press(screen.getByLabelText(fieldLabel));
+  const matches = screen.getAllByText(optionText);
+  await fireEvent.press(matches[matches.length - 1]);
 };

@@ -48,6 +48,7 @@ export default function CreateGroupScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <TextInput
+        placeholderTextColor="#888"
         placeholder="Group Name"
         value={groupName}
         onChangeText={setGroupName}
@@ -59,6 +60,7 @@ export default function CreateGroupScreen({ navigation }) {
         renderItem={({ item }) => <Text style={styles.member}>{item}</Text>}
       />
       <TextInput
+        placeholderTextColor="#888"
         placeholder="Add Member"
         value={newMember}
         onChangeText={setNewMember}
@@ -76,6 +78,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   input: {
+    color: "#000",
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ccc",
     padding: 8,

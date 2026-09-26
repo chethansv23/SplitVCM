@@ -7,7 +7,7 @@ import GroupDetailsScreen from "../GroupDetailsScreen";
 import GroupsScreen from "../GroupsScreen";
 import { getState } from "../../src/cashback/store";
 import { liveplusState } from "../../src/cashback/__tests__/helpers";
-import { makeNavigation, mockAlerts, seed } from "./testUtils";
+import { choose, makeNavigation, mockAlerts, seed } from "./testUtils";
 
 // useFocusEffect needs a navigator; run it as a plain effect.
 jest.mock("@react-navigation/native", () => {
@@ -154,7 +154,7 @@ describe("Expense groups (Split tab)", () => {
     await fireEvent.press(screen.getByText("Add Item"));
     await fireEvent.changeText(screen.getByPlaceholderText("Item Name"), "Dinner");
     await fireEvent.changeText(screen.getByPlaceholderText("Amount"), "100");
-    await fireEvent.press(screen.getByText("A"));
+    await choose("Paid by", "A");
     await fireEvent.press(screen.getByText("Add Item"));
     expect(await screen.findByText(/Dinner - ₹100 - Paid/)).toBeTruthy();
     expect(screen.getByText("Total: ₹100.00")).toBeTruthy();

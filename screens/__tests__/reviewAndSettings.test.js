@@ -7,7 +7,7 @@ import { exportBackup } from "../../src/cashback/backup";
 import { ingestNotification } from "../../src/cashback/inbox";
 import { getState } from "../../src/cashback/store";
 import { hsbcAlert, liveplusState, NOW } from "../../src/cashback/__tests__/helpers";
-import { makeNavigation, mockAlerts, seed } from "./testUtils";
+import { choose, makeNavigation, mockAlerts, seed } from "./testUtils";
 
 // Controllable native capture module.
 const mockNative = {
@@ -115,7 +115,7 @@ describe("ReviewInbox actions", () => {
     const { state } = pendingState();
     await open(state);
     expect(await screen.findByText(/Cashback ₹13/)).toBeTruthy();
-    await fireEvent.press(screen.getByText("10% groceries (10%)"));
+    await choose("Category", "10% groceries (10%)");
     expect(screen.getByText(/Cashback ₹89/)).toBeTruthy();
     expect(screen.getByText(/Accelerated 10% cap left ₹911/)).toBeTruthy();
   });
@@ -134,7 +134,8 @@ describe("ReviewInbox actions", () => {
   test("date outside the chosen group's cycle asks before adding", async () => {
     const { state } = pendingState("BIGBASKET", "14 Oct 2026 at 18:05");
     await open(state);
-    await fireEvent.press(await screen.findByText("HSBC Live+ · 10 Sep–09 Oct 2026"));
+    await screen.findByText("Add");
+    await choose("Cashback group", "HSBC Live+ · 10 Sep–09 Oct 2026");
     await fireEvent.press(screen.getByText("Add"));
     expect(alerts.last().title).toBe("Outside the cycle");
     await alerts.press("Add anyway");
@@ -287,5 +288,31 @@ describe("CaptureSettings", () => {
     const s = await getState();
     expect(s.groups[0].id).toBe(state.groups[0].id);
     expect(s.templates[0].id).toBe(state.templates[0].id);
+  });
+});
+
+describe("fields show their values (dark-mode regression)", () => {
+  test("review card shows the suggested group and category in the closed fields", async () => {
+    const { state } = pendingState();
+    await seed(state);
+    await render(<ReviewInbox navigation={nav} />);
+    await screen.findByText("Add");
+    expect(screen.getByLabelText("Cashback group").props.accessibilityValue.text).toBe("HSBC Live+ · 10 Sep–09 Oct 2026");
+    expect(screen.getByLabelText("Category").props.accessibilityValue.text).toBe("1.5% other eligible (1.5%)");
+  });
+
+  test("an alert for an unknown card shows the placeholder and still lets you pick a group", async () => {
+    const ctx = liveplusState();
+    const r = ingestNotification(ctx.state, {
+      text: "HSBC Credit Card xx7342 used at TATA 1MG HEALTHCARE for INR 867.00 on 26/09/26. Avl limit INR 150000.00",
+      sourceApp: "com.google.android.apps.messaging",
+    }, NOW);
+    await seed(r.state);
+    await render(<ReviewInbox navigation={nav} />);
+    expect(await screen.findByText("TATA 1MG HEALTHCARE")).toBeTruthy();
+    expect(screen.getByText(/26 Sep 2026 \(no time in alert\)/)).toBeTruthy();
+    expect(screen.getByText("Select…")).toBeTruthy();
+    await choose("Cashback group", "HSBC Live+ · 10 Sep–09 Oct 2026");
+    expect(screen.getByLabelText("Category").props.accessibilityValue.text).toBe("1.5% other eligible (1.5%)");
   });
 });

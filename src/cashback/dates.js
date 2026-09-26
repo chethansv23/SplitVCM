@@ -40,6 +40,12 @@ export const formatRange = (start, end) => {
   )} ${MONTHS[e.getMonth()]} ${e.getFullYear()}`;
 };
 
+export const formatDate = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
+
 export const formatDateTime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);

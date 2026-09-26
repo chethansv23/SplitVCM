@@ -7,7 +7,7 @@ import { getState } from "../../src/cashback/store";
 import { createCycleGroup } from "../../src/cashback/templates";
 import { hsbcAlert, liveplusState, NOW } from "../../src/cashback/__tests__/helpers";
 import { ingestNotification } from "../../src/cashback/inbox";
-import { makeNavigation, mockAlerts, seed } from "./testUtils";
+import { choose, makeNavigation, mockAlerts, seed } from "./testUtils";
 
 let alerts;
 let nav;
@@ -79,7 +79,7 @@ describe("CategoryEditor — group categories", () => {
     expect(alerts.last().title).toBe("Reassign first");
     expect((await group()).categories.some((c) => c.id === "grocery-10")).toBe(true);
 
-    await fireEvent.press(screen.getByText("1.5% other eligible"));
+    await choose("Move transactions to", "1.5% other eligible");
     await fireEvent.press(screen.getByText("Reassign & delete"));
     await alerts.press("Delete");
     await waitFor(async () => expect((await group()).categories.some((c) => c.id === "grocery-10")).toBe(false));
@@ -123,7 +123,7 @@ describe("TransactionEditor", () => {
     await fireEvent.changeText(screen.getByDisplayValue("Blinkit"), "Blinkit Order");
     await fireEvent.changeText(screen.getByDisplayValue("1000"), "2000");
     await fireEvent.changeText(screen.getByDisplayValue("2026-09-14 15:30"), "2026-09-15 09:00");
-    await fireEvent.press(screen.getByText("1.5% other eligible (1.5%)"));
+    await choose("Category", "1.5% other eligible (1.5%)");
     await fireEvent.press(screen.getByText("Save"));
     await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
     expect((await group()).transactions[0]).toMatchObject({ name: "Blinkit Order", amount: 2000, categoryId: "other-1-5", cashback: 30 });
@@ -144,7 +144,7 @@ describe("TransactionEditor", () => {
     const ctx = groupState();
     const october = createCycleGroup(ctx.template, "2026-10-14", NOW);
     await open({ ...ctx.state, groups: [...ctx.state.groups, october] }, ctx.group.id, ctx.tx.id);
-    await fireEvent.press(screen.getByText(october.name));
+    await choose("Cashback group", october.name);
     expect(screen.getByText(/outside the selected group's cycle/)).toBeTruthy();
     await fireEvent.press(screen.getByText("Move & save"));
     expect(alerts.last().title).toBe("Outside the cycle");

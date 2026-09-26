@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/EvilIcons"; // Import EvilIcons for trash icon and close icon
 
+import { Select } from "../components/cashback/ui";
 import { calculateSettlements, calculateTotals, formatSettlements } from "../src/groups/settlement";
 
 export default function GroupDetailsScreen({ route, navigation }) {
@@ -222,32 +222,27 @@ export default function GroupDetailsScreen({ route, navigation }) {
       {isAdding ? (
         <View style={styles.addItem}>
           <TextInput
+            placeholderTextColor="#888"
             placeholder="Item Name"
             value={newItem.name}
             onChangeText={(text) => setNewItem({ ...newItem, name: text })}
             style={styles.input}
           />
           <TextInput
+            placeholderTextColor="#888"
             placeholder="Amount"
             value={newItem.amount}
             onChangeText={(text) => setNewItem({ ...newItem, amount: text })}
             keyboardType="numeric"
             style={styles.input}
           />
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={newItem.payer}
-              onValueChange={(value) =>
-                setNewItem({ ...newItem, payer: value })
-              }
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Payer" value="" />
-              {members.map((member, index) => (
-                <Picker.Item key={index} label={member} value={member} />
-              ))}
-            </Picker>
-          </View>
+          <Select
+            label="Paid by"
+            placeholder="Select payer"
+            value={newItem.payer || null}
+            onChange={(value) => setNewItem({ ...newItem, payer: value })}
+            options={members.map((member) => ({ label: member, value: member }))}
+          />
           <TouchableOpacity style={styles.actionButton} onPress={addItem}>
             <Text style={styles.actionButtonText}>Add Item</Text>
           </TouchableOpacity>
@@ -340,6 +335,8 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 40,
+    color: "#000",
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 6,

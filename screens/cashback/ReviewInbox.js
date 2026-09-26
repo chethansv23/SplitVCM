@@ -3,7 +3,7 @@ import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
 
 import { Banner, Btn, Chips, Field, Select, Toggle, money, ui } from "../../components/cashback/ui";
 import { previewCashback } from "../../src/cashback/compute";
-import { formatDateTime, parseEditableDateTime, toEditableDateTime } from "../../src/cashback/dates";
+import { formatDate, formatDateTime, parseEditableDateTime, toEditableDateTime } from "../../src/cashback/dates";
 import { findRefundMatches, isOutsideCycle } from "../../src/cashback/groups";
 import {
   assignCandidate,
@@ -127,7 +127,9 @@ function ReviewItem({ candidate, state, onSkip }) {
       </View>
       <Text style={ui.small}>
         {p.cardLastFour ? `•••• ${p.cardLastFour}` : p.vpa ? `UPI ${p.vpa}` : "No card suffix"} ·{" "}
-        {formatDateTime(p.occurredAt)}
+        {p.dateFromText && p.timeFromText === false
+          ? `${formatDate(p.occurredAt)} (no time in alert)`
+          : formatDateTime(p.occurredAt)}
         {p.dateFromText ? "" : " (notification time)"} · {candidate.source}
       </Text>
       {candidate.duplicateSources?.length ? (
