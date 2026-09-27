@@ -111,6 +111,8 @@ Open **Cashback → Settings → Capture & Privacy**:
 4. Tap **Open battery settings** and set SplitVCM to *Unrestricted* / *Don't optimise*. Xiaomi, Oppo, Vivo, and Samsung phones otherwise stop the listener.
 5. Check **Allowed apps**. Messages, Gmail, Outlook, and common bank apps are allowed by default. If a bank app posts transaction alerts but isn't on the list, its package name appears under *Transaction-like alerts seen from* with an **Allow** button.
 
+SplitVCM reads the **notification** an SMS, bank or email app shows, not your SMS inbox (it has no SMS permission). An alert is captured only if it produces a notification, so muted conversations aren't read. If alerts don't arrive, **Capture status** lists the last few texts the listener skipped from allowed apps (long numbers hidden), which shows what Android actually passed on.
+
 Captured alerts are processed each time the app opens or returns to the foreground. Use **Process captured alerts now** to process them immediately.
 
 ### How an alert is handled

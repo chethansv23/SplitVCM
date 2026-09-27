@@ -30,6 +30,7 @@ jest.mock("../../modules/notification-capture", () => ({
     isIgnoringBatteryOptimizations: () => mockNative.battery,
     getBlockedPackages: () => mockNative.blocked,
     getDiagnostics: () => mockNative.diagnostics,
+    getRecentSkipped: () => mockNative.skipped || [],
     configure: (...a) => mockNative.configure(...a),
     openNotificationAccessSettings: () => mockNative.openNotificationAccessSettings(),
     openAppDetailsSettings: () => mockNative.openAppDetailsSettings(),
@@ -53,7 +54,7 @@ let nav;
 beforeEach(() => {
   alerts = mockAlerts();
   nav = makeNavigation();
-  Object.assign(mockNative, { available: false, granted: false, battery: true, blocked: [], diagnostics: null });
+  Object.assign(mockNative, { available: false, granted: false, battery: true, blocked: [], diagnostics: null, skipped: [] });
   jest.clearAllMocks();
 });
 afterEach(() => alerts.restore());
@@ -199,7 +200,7 @@ describe("CaptureSettings", () => {
     });
     await open({ settings: { captureEnabled: true, consentAcceptedAt: "2026-09-26T00:00:00Z" } });
     expect(screen.getByText(/Notification access: ❌ not granted/)).toBeTruthy();
-    expect(screen.getByText(/Battery optimisation: ⚠️ restricted/)).toBeTruthy();
+    expect(screen.getByText(/Battery \(optional\): optimised/)).toBeTruthy();
     await fireEvent.press(screen.getByText("Open notification access"));
     await fireEvent.press(screen.getByText("Open App info"));
     await fireEvent.press(screen.getByText("Open battery settings"));
@@ -326,4 +327,26 @@ test("an alert from an unknown card offers a shortcut to set that card up", asyn
   await render(<ReviewInbox navigation={nav} />);
   await fireEvent.press(await screen.findByText("Set up card •••• 7342"));
   expect(nav.navigate).toHaveBeenCalledWith("CardTemplates", { cardLastFour: "7342" });
+});
+
+test("Capture status lists texts the listener skipped from allowed apps", async () => {
+  Object.assign(mockNative, {
+    available: true,
+    granted: true,
+    diagnostics: { connectedCount: 1, postedCount: 3, otherAppCount: 1, notTransactionCount: 2, queuedCount: 0 },
+    skipped: [
+      { sourceApp: "com.google.android.apps.messaging", title: "VM-HSBCIN-S", text: "", length: 0, at: Date.parse("2026-09-27T03:30:00Z") },
+      { sourceApp: "com.google.android.apps.messaging", title: "Mom", text: "Call me when free", length: 17, at: Date.parse("2026-09-27T03:40:00Z") },
+    ],
+  });
+  await seed({ settings: { captureEnabled: true, consentAcceptedAt: "2026-09-26T00:00:00Z" } });
+  await render(<CaptureSettings navigation={nav} />);
+  expect(await screen.findByText("Last texts skipped from allowed apps")).toBeTruthy();
+  expect(screen.getByText("From other apps, ignored: 1", { exact: false })).toBeTruthy();
+  expect(screen.getByText("From allowed apps, not a spend: 2", { exact: false })).toBeTruthy();
+  expect(screen.getByText("VM-HSBCIN-S")).toBeTruthy();
+  expect(screen.getByText("(no text in the notification)")).toBeTruthy();
+  // Newest first.
+  const texts = screen.getAllByText(/Call me when free|\(no text in the notification\)/).map((t) => t.props.children);
+  expect(texts[0]).toBe("Call me when free");
 });

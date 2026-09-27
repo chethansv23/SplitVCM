@@ -77,8 +77,30 @@ class CaptureStore(context: Context) {
   fun resetDiagnostics() {
     val edit = prefs.edit()
     for (event in EVENTS) edit.remove("count_$event").remove("last_$event")
-    edit.remove(KEY_RECENT).apply()
+    edit.remove(KEY_RECENT).remove(KEY_SKIPPED).apply()
   }
+
+  // Keeps the last few texts from allowed apps that were not treated as a
+  // transaction, so Capture status can show what Android actually handed
+  // over. Runs of 5+ digits are masked so OTPs and references aren't kept.
+  fun recordSkipped(sourceApp: String, title: String, text: String) {
+    synchronized(LOCK) {
+      val list = JSONArray(prefs.getString(KEY_SKIPPED, "[]"))
+      val masked = text.replace(Regex("\\d{5,}"), "•••••")
+      list.put(
+        JSONObject()
+          .put("sourceApp", sourceApp)
+          .put("title", title.take(40))
+          .put("text", masked.take(160))
+          .put("length", text.length)
+          .put("at", System.currentTimeMillis().toDouble())
+      )
+      while (list.length() > MAX_SKIPPED) list.remove(0)
+      prefs.edit().putString(KEY_SKIPPED, list.toString()).apply()
+    }
+  }
+
+  fun recentSkipped(): String = prefs.getString(KEY_SKIPPED, "[]") ?: "[]"
 
   fun recordBlocked(packageName: String) {
     val blocked = prefs.getStringSet(KEY_BLOCKED, emptySet())?.toMutableSet() ?: mutableSetOf()
@@ -95,9 +117,11 @@ class CaptureStore(context: Context) {
     private const val KEY_QUEUE = "queue"
     private const val KEY_RECENT = "recentKeys"
     private const val KEY_BLOCKED = "blockedPackages"
+    private const val KEY_SKIPPED = "recentSkipped"
+    private const val MAX_SKIPPED = 3
     private const val MAX_QUEUE = 500
     private const val MAX_RECENT = 100
     private val LOCK = Any()
-    val EVENTS = listOf("connected", "disconnected", "posted", "disabled", "notTransaction", "blocked", "queued", "repeat")
+    val EVENTS = listOf("connected", "disconnected", "posted", "disabled", "otherApp", "notTransaction", "blocked", "queued", "repeat")
   }
 }

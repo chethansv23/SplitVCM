@@ -28,4 +28,7 @@ export default {
   // blocked/queued/repeat (…Count and …At), plus enabled and queueLength.
   getDiagnostics: () => call("getDiagnostics", null),
   resetDiagnostics: () => call("resetDiagnostics", undefined),
+  // Last few texts from allowed apps that were not treated as a spend
+  // (long numbers masked): [{ sourceApp, title, text, length, at }]
+  getRecentSkipped: () => (Native ? JSON.parse(Native.getRecentSkipped()) : []),
 };

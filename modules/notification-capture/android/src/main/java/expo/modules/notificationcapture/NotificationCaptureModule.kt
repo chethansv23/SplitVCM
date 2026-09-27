@@ -71,6 +71,10 @@ class NotificationCaptureModule : Module() {
       CaptureStore(context).diagnostics()
     }
 
+    Function("getRecentSkipped") {
+      CaptureStore(context).recentSkipped()
+    }
+
     Function("resetDiagnostics") {
       CaptureStore(context).resetDiagnostics()
     }

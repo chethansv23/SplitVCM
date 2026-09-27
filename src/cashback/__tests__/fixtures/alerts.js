@@ -45,6 +45,13 @@ export const DEBIT_ALERTS = [
     expected: { amount: 867, cardLastFour: "5678", merchant: "TATA 1MG HEALTHCARE", day: "2026-09-26" },
   },
   {
+    // Real HSBC UPI-on-credit-card wording from a device (digits changed).
+    name: "HSBC SMS: 'Rs 60.0 spent … through UPI: <ref>'",
+    title: "VM-HSBCIN-S",
+    text: "HSBC: Rs 60.0 spent on your HSBC Credit Card ending 5678 at Natures pure on 27 Sep 2026 through UPI: 315600000000. Trxn. not done by you? Call 18002673456.",
+    expected: { amount: 60, cardLastFour: "5678", merchant: "Natures pure", day: "2026-09-27", accountType: "card" },
+  },
+  {
     name: "Email notification",
     title: "Transaction alert for your HDFC Bank Credit Card",
     text: "Dear Customer, Rs.1250.00 has been debited from your HDFC Bank Credit Card ending 1234 towards BOOKMYSHOW on 23 Sep, 2026 at 10:31:12.",

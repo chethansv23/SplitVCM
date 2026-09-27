@@ -6,6 +6,7 @@ import NotificationCapture from "../../modules/notification-capture";
 import { Banner, Btn, Chips, Field, NumberField, Section, Toggle, ui } from "../../components/cashback/ui";
 import { exportBackup, parseBackup } from "../../src/cashback/backup";
 import { explainCapture } from "../../src/cashback/captureDiagnostics";
+import { formatDateTime } from "../../src/cashback/dates";
 import { ingestPastedAlert, processCapturedNotifications, syncCaptureConfig } from "../../src/cashback/capture";
 import { deleteAllCapturedText } from "../../src/cashback/inbox";
 import { readExpenseGroups, updateState, useCashbackState, writeExpenseGroups } from "../../src/cashback/store";
@@ -22,7 +23,7 @@ const summaryText = (s) =>
 export default function CaptureSettings({ navigation }) {
   const state = useCashbackState();
   const available = NotificationCapture.isAvailable();
-  const [status, setStatus] = useState({ granted: false, battery: true, blocked: [], diagnostics: null });
+  const [status, setStatus] = useState({ granted: false, battery: true, blocked: [], diagnostics: null, skipped: [] });
   const [newPackage, setNewPackage] = useState("");
   const [pasted, setPasted] = useState("");
   const [pastedSource, setPastedSource] = useState(SOURCES[0].value);
@@ -36,6 +37,7 @@ export default function CaptureSettings({ navigation }) {
       battery: NotificationCapture.isIgnoringBatteryOptimizations(),
       blocked: NotificationCapture.getBlockedPackages(),
       diagnostics: NotificationCapture.getDiagnostics(),
+      skipped: NotificationCapture.getRecentSkipped(),
     });
   }, [available]);
 
@@ -164,7 +166,7 @@ export default function CaptureSettings({ navigation }) {
             </Text>
             <Btn small kind="secondary" title="Open notification access" onPress={NotificationCapture.openNotificationAccessSettings} style={{ alignSelf: "flex-start", marginVertical: 4 }} />
             <Text style={ui.small}>
-              3. Battery optimisation: {status.battery ? "✅ unrestricted" : "⚠️ restricted — some phones stop the listener; set SplitVCM to Unrestricted/Don't optimise"}
+              3. Battery (optional): {status.battery ? "unrestricted" : "optimised. Only change this if \"Notifications seen\" stops going up while SMS arrive — some phones stop background listeners; then set SplitVCM to Unrestricted"}
             </Text>
             <Btn small kind="secondary" title="Open battery settings" onPress={NotificationCapture.openBatteryOptimizationSettings} style={{ alignSelf: "flex-start", marginVertical: 4 }} />
             {status.granted ? (
@@ -192,6 +194,27 @@ export default function CaptureSettings({ navigation }) {
             </>
           );
         })()}
+        {status.skipped.length > 0 ? (
+          <View style={{ marginTop: 8 }}>
+            <Text style={ui.strong}>Last texts skipped from allowed apps</Text>
+            <Text style={ui.small}>
+              What Android passed to SplitVCM. If a bank alert shows here, its text didn't include an amount and a
+              spend word. Long numbers are hidden.
+            </Text>
+            {status.skipped
+              .slice()
+              .reverse()
+              .map((item) => (
+                <View key={`${item.at}-${item.sourceApp}`} style={[ui.card, { marginTop: 6, marginBottom: 0 }]}>
+                  <Text style={ui.small}>
+                    {item.sourceApp} · {formatDateTime(new Date(item.at).toISOString())} · {item.length} characters
+                  </Text>
+                  {item.title ? <Text style={ui.strong}>{item.title}</Text> : null}
+                  <Text style={ui.raw}>{item.text || "(no text in the notification)"}</Text>
+                </View>
+              ))}
+          </View>
+        ) : null}
         {available ? (
           <Btn
             small
