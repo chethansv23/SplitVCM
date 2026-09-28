@@ -113,6 +113,8 @@ Open **Cashback → Settings → Capture & Privacy**:
 
 SplitVCM reads the **notification** an SMS, bank or email app shows, not your SMS inbox (it has no SMS permission). An alert is captured only if it produces a notification, so muted conversations aren't read. If alerts don't arrive, **Capture status** lists the last few texts the listener skipped from allowed apps (long numbers hidden), which shows what Android actually passed on.
 
+Many bank alerts give only a date ("on 27 Sep 2026"). When the notification arrived that same day, its arrival time is used as the transaction time and shown as "(time received)"; otherwise the review card says "(no time in alert)".
+
 Captured alerts are processed each time the app opens or returns to the foreground. Use **Process captured alerts now** to process them immediately.
 
 ### How an alert is handled

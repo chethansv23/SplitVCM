@@ -14,6 +14,7 @@ import {
   pendingCandidates,
 } from "../../src/cashback/inbox";
 import { matchCategory, REVIEW_REASONS } from "../../src/cashback/matcher";
+import { hasKnownTime } from "../../src/cashback/parser";
 import { updateState, useCashbackState, withResult } from "../../src/cashback/store";
 
 const run = async (fn) => {
@@ -127,10 +128,8 @@ function ReviewItem({ candidate, state, onSkip, navigation }) {
       </View>
       <Text style={ui.small}>
         {p.cardLastFour ? `•••• ${p.cardLastFour}` : p.vpa ? `UPI ${p.vpa}` : "No card suffix"} ·{" "}
-        {p.dateFromText && p.timeFromText === false
-          ? `${formatDate(p.occurredAt)} (no time in alert)`
-          : formatDateTime(p.occurredAt)}
-        {p.dateFromText ? "" : " (notification time)"} · {candidate.source}
+        {hasKnownTime(p) ? formatDateTime(p.occurredAt) : `${formatDate(p.occurredAt)} (no time in alert)`}
+        {p.timeSource === "notification" || !p.dateFromText ? " (time received)" : ""} · {candidate.source}
       </Text>
       {candidate.duplicateSources?.length ? (
         <Text style={ui.small}>Also seen in {candidate.duplicateSources.length} other alert(s)</Text>
@@ -280,7 +279,10 @@ export default function ReviewInbox({ navigation }) {
         />
       )}
       ListEmptyComponent={() => (
-        <Text style={ui.empty}>{pending.length ? "All remaining items are skipped." : "Nothing to review. 🎉"}</Text>
+        <View style={{ alignItems: "center" }}>
+          <Text style={ui.empty}>{pending.length ? "All remaining items are skipped." : "Nothing to review. 🎉"}</Text>
+          <Btn title="Back to My Cashback" onPress={() => navigation.navigate("CashbackMain")} style={{ marginTop: 16 }} />
+        </View>
       )}
     />
   );
