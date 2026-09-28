@@ -1,6 +1,8 @@
 // Parses a bank SMS / app / email notification into a transaction candidate.
 // Pure and bank-agnostic; covered by fixtures in __tests__/fixtures.
 
+import { toDateKey } from "./dates";
+
 export const PARSER_RULE_ID = "generic-v1";
 
 const MONTHS = {
@@ -175,7 +177,16 @@ export const parseNotification = (input) => {
   const found = extractDateTime(text);
   const textDate = found?.date ?? null;
   const postedAt = input.postedAt ? new Date(input.postedAt) : new Date();
-  const occurredAt = (textDate || postedAt).toISOString();
+  // Many alerts give only a date ("on 27 Sep 2026"). An SMS notification
+  // arrives within seconds of the spend, so when it arrived on that same day
+  // its time is the best time we have. Otherwise the time stays unknown.
+  let occurred = textDate || postedAt;
+  let timeSource = found?.hasTime ? "text" : textDate ? "none" : "notification";
+  if (timeSource === "none" && input.postedAt && toDateKey(postedAt) === toDateKey(textDate)) {
+    occurred = postedAt;
+    timeSource = "notification";
+  }
+  const occurredAt = occurred.toISOString();
 
   let score = 0;
   if (amount != null) score += 1;
@@ -197,6 +208,13 @@ export const parseNotification = (input) => {
     occurredAt,
     dateFromText: Boolean(textDate),
     timeFromText: Boolean(found?.hasTime),
+    // "text", "notification" (arrival time on the same day), or "none".
+    timeSource,
     confidence,
   };
 };
+
+// Whether an alert's time of day is known. Alerts saved before timeSource
+// existed fall back to timeFromText.
+export const hasKnownTime = (parsed) =>
+  parsed.timeSource ? parsed.timeSource !== "none" : parsed.timeFromText !== false || !parsed.dateFromText;

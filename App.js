@@ -175,7 +175,9 @@ export default function App() {
   const openReview = () => {
     setReviewCount(0);
     if (navigationRef.isReady()) {
-      navigationRef.navigate("Cashback", { screen: "ReviewInbox" });
+      // initial: false keeps My Cashback underneath, so Back works and the
+      // Cashback tab doesn't reopen on the review screen.
+      navigationRef.navigate("Cashback", { screen: "ReviewInbox", initial: false });
     }
   };
 

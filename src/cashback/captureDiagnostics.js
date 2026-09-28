@@ -31,9 +31,10 @@ export const explainCapture = ({ available, granted, settings, diagnostics: d })
   if (d?.disabledCount) {
     add(!enabled, `Seen while capture was off: ${d.disabledCount}`, enabled ? null : "Switch capture on, then send the alert again.");
   }
+  if (d?.otherAppCount) add(true, `From other apps, ignored: ${d.otherAppCount}`);
   if (d?.notTransactionCount) {
-    add(true, `Skipped as not a transaction: ${d.notTransactionCount}`,
-      "Only texts with an amount (Rs/INR/₹) and a word like spent, debited, paid, or used are kept.");
+    add(true, `From allowed apps, not a spend: ${d.notTransactionCount}`,
+      "Only texts with an amount (Rs/INR/₹) and a word like spent, debited, paid or used are kept. The last few are listed below.");
   }
   if (d?.blockedCount) {
     add(false, `From apps not in the allowed list: ${d.blockedCount}`,

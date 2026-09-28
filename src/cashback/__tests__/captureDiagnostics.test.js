@@ -45,3 +45,13 @@ test("working", () => {
   expect(r.verdict).toMatch(/being captured/);
   expect(r.steps.every((s) => s.ok)).toBe(true);
 });
+
+test("other-app and allowed-app skips are reported separately", () => {
+  const r = explainCapture({
+    available: true, granted: true, settings: on,
+    diagnostics: diag({ postedCount: 10, otherAppCount: 8, notTransactionCount: 2 }),
+  });
+  const labels = r.steps.map((s) => s.label);
+  expect(labels).toContain("From other apps, ignored: 8");
+  expect(labels).toContain("From allowed apps, not a spend: 2");
+});

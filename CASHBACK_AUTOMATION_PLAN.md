@@ -366,4 +366,5 @@ Decisions taken where confirmations were still open (all can be changed in the a
 - Manual groups can be linked to a card's last four digits and billing cycle ("Track this card automatically"), because alerts are matched through cards.
 - Alerts waiting in review are re-checked when a card or cycle is set up, and review items for an unknown card offer "Set up card •••• 1234".
 - Sideloaded APKs that read notifications are blocked by Google Play Protect's fraud protection in India; install with `adb install` from a computer, or temporarily turn off Play Protect scanning.
-- Tests: 323 in 24 files, about 96% line coverage.
+- Google Messages can put the SMS body only in its "messaging style" field; the listener now reads every notification text field. Capture status lists the last texts skipped from allowed apps, with long numbers masked.
+- Tests: 326 in 24 files, about 96% line coverage.

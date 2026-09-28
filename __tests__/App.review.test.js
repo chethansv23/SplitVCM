@@ -36,6 +36,9 @@ test("after unlocking, the review prompt opens the Needs Review screen", async (
   expect(await screen.findByText("2 captured transactions could not be assigned automatically.", { exact: false })).toBeTruthy();
   await fireEvent.press(screen.getByText("Review now"));
   expect(await screen.findByText("Nothing to review. 🎉")).toBeTruthy();
+  // Not stuck: the review screen leads back to My Cashback.
+  await fireEvent.press(screen.getByText("Back to My Cashback"));
+  expect(await screen.findByText(/No cashback groups yet/)).toBeTruthy();
 });
 
 test("no prompt when nothing is pending", async () => {

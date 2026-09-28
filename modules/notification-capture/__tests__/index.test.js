@@ -16,6 +16,7 @@ test("forwards to the native module on Android and parses the queue JSON", async
     getBlockedPackages: jest.fn(() => ["com.bank"]),
     getDiagnostics: jest.fn(() => ({ postedCount: 3 })),
     isIgnoringBatteryOptimizations: jest.fn(() => false),
+    getRecentSkipped: jest.fn(() => JSON.stringify([{ title: "VM-HSBCIN-S", text: "", length: 0 }])),
   };
   const capture = load({ os: "android", native });
   expect(capture.isAvailable()).toBe(true);
@@ -26,6 +27,7 @@ test("forwards to the native module on Android and parses the queue JSON", async
   expect(capture.getBlockedPackages()).toEqual(["com.bank"]);
   expect(capture.getDiagnostics()).toEqual({ postedCount: 3 });
   expect(capture.isIgnoringBatteryOptimizations()).toBe(false);
+  expect(capture.getRecentSkipped()).toEqual([{ title: "VM-HSBCIN-S", text: "", length: 0 }]);
 });
 
 test.each([
@@ -39,6 +41,17 @@ test.each([
   expect(await capture.drainQueue()).toEqual([]);
   expect(capture.getBlockedPackages()).toEqual([]);
   expect(capture.getDiagnostics()).toBeNull();
+  expect(capture.getRecentSkipped()).toEqual([]);
   expect(() => capture.configure(true, [])).not.toThrow();
   expect(() => capture.openNotificationAccessSettings()).not.toThrow();
+});
+
+test("an older native build without newer functions does not crash", async () => {
+  const capture = load({ os: "android", native: { isPermissionGranted: () => true, drainQueue: async () => "[]" } });
+  expect(capture.isAvailable()).toBe(true);
+  expect(capture.isPermissionGranted()).toBe(true);
+  expect(capture.getRecentSkipped()).toEqual([]);
+  expect(capture.getDiagnostics()).toBeNull();
+  expect(() => capture.resetDiagnostics()).not.toThrow();
+  expect(await capture.drainQueue()).toEqual([]);
 });

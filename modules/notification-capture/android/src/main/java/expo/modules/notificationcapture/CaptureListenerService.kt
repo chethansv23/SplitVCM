@@ -28,16 +28,32 @@ class CaptureListenerService : NotificationListenerService() {
 
     val extras = notification.extras
     val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-    val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
-      ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty()
-    if (!looksLikeTransaction("$title $text")) {
-      store.count("notTransaction")
+    // SMS apps (e.g. Google Messages) use MessagingStyle, where the message
+    // body can be only in EXTRA_MESSAGES; read every text field there is.
+    val parts = linkedSetOf<String>()
+    extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.let { parts.add(it.toString()) }
+    extras.getCharSequence(Notification.EXTRA_TEXT)?.let { parts.add(it.toString()) }
+    extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { parts.add(it.toString()) }
+    @Suppress("DEPRECATION")
+    extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.forEach { m ->
+      (m as? android.os.Bundle)?.getCharSequence("text")?.let { parts.add(it.toString()) }
+    }
+    notification.tickerText?.let { parts.add(it.toString()) }
+    val text = parts.filter { it.isNotBlank() }.joinToString("\n")
+    val looksLikeSpend = looksLikeTransaction("$title $text")
+    if (!store.isAllowed(sbn.packageName)) {
+      if (looksLikeSpend) {
+        // A spend alert from an app that isn't allowed: suggest adding it.
+        store.recordBlocked(sbn.packageName)
+        store.count("blocked")
+      } else {
+        store.count("otherApp")
+      }
       return
     }
-
-    if (!store.isAllowed(sbn.packageName)) {
-      store.recordBlocked(sbn.packageName)
-      store.count("blocked")
+    if (!looksLikeSpend) {
+      store.count("notTransaction")
+      store.recordSkipped(sbn.packageName, title, text)
       return
     }
     // Apps re-post the same notification when it updates (read, grouped);

@@ -283,3 +283,14 @@ describe("recheckPending: alerts that arrived before the card was set up", () =>
     expect(recheckPending({ ...ignored, groups: [...ignored.groups, october] }, NOW).assigned).toBe(0);
   });
 });
+
+test("an SMS timed by arrival and a later email for the same spend are still merged", () => {
+  const { state } = liveplusState();
+  const text = "HSBC: Rs 899.0 spent on your HSBC Credit Card ending 5678 at BIGBASKET on 14 Sep 2026 through UPI: 315600000000.";
+  const sms = { text, sourceApp: "com.google.android.apps.messaging", postedAt: new Date(2026, 8, 14, 9, 1).toISOString() };
+  const email = { text, sourceApp: "com.google.android.gm", postedAt: new Date(2026, 8, 14, 13, 30).toISOString() };
+  const { state: next, summary } = ingestMany(state, [sms, email], NOW);
+  expect(summary).toMatchObject({ assigned: 1, duplicate: 1 });
+  const tx = next.groups[0].transactions[0];
+  expect([new Date(tx.occurredAt).getHours(), new Date(tx.occurredAt).getMinutes()]).toEqual([9, 1]);
+});

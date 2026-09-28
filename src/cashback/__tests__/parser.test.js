@@ -1,5 +1,5 @@
 import { toDateKey } from "../dates";
-import { extractDate, merchantFromVpa, parseNotification } from "../parser";
+import { extractDate, hasKnownTime, merchantFromVpa, parseNotification } from "../parser";
 import { CREDIT_ALERTS, DEBIT_ALERTS, IGNORED_ALERTS } from "./fixtures/alerts";
 
 const POSTED = "2026-09-25T06:00:00.000Z";
@@ -113,5 +113,40 @@ describe("review fixes", () => {
   test("date-only alerts are flagged as having no time", () => {
     const p = parseNotification({ text: "INR 450.50 spent on Axis Bank Card XX4321 on 13-09-26 at ZOMATO.", postedAt: POSTED });
     expect(p).toMatchObject({ dateFromText: true, timeFromText: false });
+  });
+});
+
+describe("time of day for date-only alerts", () => {
+  const SMS = "HSBC: Rs 60.0 spent on your HSBC Credit Card ending 5678 at Natures pure on 27 Sep 2026 through UPI: 315600000000.";
+
+  test("uses the time the notification arrived when it is the same day", () => {
+    const posted = new Date(2026, 8, 27, 9, 1).toISOString(); // 27 Sep, 09:01 local
+    const p = parseNotification({ text: SMS, postedAt: posted });
+    expect(p.occurredAt).toBe(posted);
+    expect(p).toMatchObject({ timeSource: "notification", timeFromText: false, dateFromText: true });
+    expect(hasKnownTime(p)).toBe(true);
+  });
+
+  test("keeps the date without a time when the notification came on another day", () => {
+    const p = parseNotification({ text: SMS, postedAt: new Date(2026, 8, 28, 8, 0).toISOString() });
+    const d = new Date(p.occurredAt);
+    expect([d.getDate(), d.getHours(), d.getMinutes()]).toEqual([27, 0, 0]);
+    expect(p.timeSource).toBe("none");
+    expect(hasKnownTime(p)).toBe(false);
+  });
+
+  test("a time written in the alert wins over the arrival time", () => {
+    const p = parseNotification({
+      text: "INR 450.50 spent on Axis Bank Card XX4321 on 27-09-26 at 08:15 at ZOMATO.",
+      postedAt: new Date(2026, 8, 27, 9, 1).toISOString(),
+    });
+    expect(new Date(p.occurredAt).getHours()).toBe(8);
+    expect(p.timeSource).toBe("text");
+  });
+
+  test("alerts saved before this change still report their time correctly", () => {
+    expect(hasKnownTime({ dateFromText: true, timeFromText: false })).toBe(false);
+    expect(hasKnownTime({ dateFromText: true, timeFromText: true })).toBe(true);
+    expect(hasKnownTime({ dateFromText: false })).toBe(true);
   });
 });
