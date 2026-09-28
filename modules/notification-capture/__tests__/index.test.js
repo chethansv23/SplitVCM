@@ -45,3 +45,13 @@ test.each([
   expect(() => capture.configure(true, [])).not.toThrow();
   expect(() => capture.openNotificationAccessSettings()).not.toThrow();
 });
+
+test("an older native build without newer functions does not crash", async () => {
+  const capture = load({ os: "android", native: { isPermissionGranted: () => true, drainQueue: async () => "[]" } });
+  expect(capture.isAvailable()).toBe(true);
+  expect(capture.isPermissionGranted()).toBe(true);
+  expect(capture.getRecentSkipped()).toEqual([]);
+  expect(capture.getDiagnostics()).toBeNull();
+  expect(() => capture.resetDiagnostics()).not.toThrow();
+  expect(await capture.drainQueue()).toEqual([]);
+});
