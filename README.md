@@ -196,6 +196,10 @@ Tests run in the `Asia/Kolkata` time zone (`jest.global-setup.js`) so cycle boun
 
 The Kotlin listener cannot be unit-tested here. Check it on a device with a development build.
 
+## Versions and releases
+
+Each merged PR is a version, recorded in [CHANGELOG.md](CHANGELOG.md). The version is set in `app.json` and `package.json`, shown at the bottom of **Capture & Privacy**, and tagged in git as `vX.Y.Z`. Work for the next version happens on a `release/X.Y.Z` branch cut from `master`. Release APKs use the `preview` profile, which gives each build a new Android build number so it installs over the previous one.
+
 ## Data and storage
 
 All data is local. AsyncStorage keys:
