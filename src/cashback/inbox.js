@@ -64,7 +64,11 @@ export const ingestNotification = (state, raw, now = new Date()) => {
     return { state, outcome: "ignored", reason: parsed.ignoreReason };
   }
 
-  const duplicate = findDuplicateCandidate(parsed, state.candidates, settings.duplicateWindowMinutes);
+  const duplicate = findDuplicateCandidate(parsed, state.candidates, settings.duplicateWindowMinutes, {
+    sourceApp: raw.sourceApp || null,
+    rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
+    postedAt: raw.postedAt || null,
+  });
   if (duplicate) {
     const merged = {
       ...duplicate,
@@ -84,6 +88,8 @@ export const ingestNotification = (state, raw, now = new Date()) => {
     sourceApp: raw.sourceApp || null,
     rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
     receivedAt: now.toISOString(),
+    // When the notification arrived; tells a re-delivered SMS from a new one.
+    postedAt: raw.postedAt || null,
     parsed,
     suggestedTemplateId: decision.suggestion.templateId,
     suggestedGroupId: decision.suggestion.groupId,
@@ -118,6 +124,7 @@ const unprocessedCandidate = (raw, now) => ({
   sourceApp: raw.sourceApp || null,
   rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
   receivedAt: now.toISOString(),
+  postedAt: raw.postedAt || null,
   parsed: {
     kind: "debit", direction: "debit", amount: null, merchant: null, cardLastFour: null,
     channel: "card", vpa: null, occurredAt: raw.postedAt || now.toISOString(),

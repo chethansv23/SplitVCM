@@ -26,45 +26,75 @@ class CaptureListenerService : NotificationListenerService() {
       return
     }
 
-    val extras = notification.extras
-    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-    // SMS apps (e.g. Google Messages) use MessagingStyle, where the message
-    // body can be only in EXTRA_MESSAGES; read every text field there is.
-    val parts = linkedSetOf<String>()
-    extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.let { parts.add(it.toString()) }
-    extras.getCharSequence(Notification.EXTRA_TEXT)?.let { parts.add(it.toString()) }
-    extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { parts.add(it.toString()) }
-    @Suppress("DEPRECATION")
-    extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.forEach { m ->
-      (m as? android.os.Bundle)?.getCharSequence("text")?.let { parts.add(it.toString()) }
-    }
-    notification.tickerText?.let { parts.add(it.toString()) }
-    val text = parts.filter { it.isNotBlank() }.joinToString("\n")
-    val looksLikeSpend = looksLikeTransaction("$title $text")
-    if (!store.isAllowed(sbn.packageName)) {
-      if (looksLikeSpend) {
-        // A spend alert from an app that isn't allowed: suggest adding it.
-        store.recordBlocked(sbn.packageName)
-        store.count("blocked")
-      } else {
-        store.count("otherApp")
+    val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+    val messages = messagesOf(sbn, notification)
+    val allowed = store.isAllowed(sbn.packageName)
+    for (message in messages) {
+      val looksLikeSpend = looksLikeTransaction("$title ${message.text}")
+      if (!allowed) {
+        if (looksLikeSpend) {
+          // A spend alert from an app that isn't allowed: suggest adding it.
+          store.recordBlocked(sbn.packageName)
+          store.count("blocked")
+        } else {
+          store.count("otherApp")
+        }
+        continue
       }
-      return
+      if (!looksLikeSpend) {
+        store.count("notTransaction")
+        store.recordSkipped(sbn.packageName, title, message.text)
+        continue
+      }
+      if (store.enqueue(sbn.packageName, title, message.text, message.time, message.dedupeKey)) {
+        store.count("queued")
+      } else {
+        store.count("repeat")
+      }
     }
-    if (!looksLikeSpend) {
-      store.count("notTransaction")
-      store.recordSkipped(sbn.packageName, title, text)
-      return
+  }
+
+  // One message inside a notification. Apps re-post a notification whenever
+  // it changes (a new SMS in the conversation, marked read), so each message
+  // has a stable key and older messages aren't queued again.
+  private data class Message(val text: String, val time: Long, val dedupeKey: String)
+
+  // A notification can bundle several messages: Google Messages lists a
+  // conversation's SMS as MessagingStyle messages, and Gmail lists several
+  // emails as inbox lines. Each is a separate alert; joining them would let a
+  // loan offer borrow "spent" from another message.
+  private fun messagesOf(sbn: StatusBarNotification, notification: Notification): List<Message> {
+    val extras = notification.extras
+    val pkg = sbn.packageName
+
+    @Suppress("DEPRECATION")
+    val styled = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+      ?.mapNotNull { it as? android.os.Bundle }
+      ?.mapNotNull { b ->
+        val text = b.getCharSequence("text")?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val time = b.getLong("time").takeIf { it > 0 } ?: sbn.postTime
+        Message(text, time, "$pkg|msg|$time|${text.hashCode()}")
+      }
+      .orEmpty()
+    if (styled.isNotEmpty()) return styled
+
+    val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+      ?.map { it.toString() }
+      ?.filter { it.isNotBlank() }
+      .orEmpty()
+    if (lines.size > 1) {
+      return lines.map { Message(it, sbn.postTime, "$pkg|line|${it.hashCode()}") }
     }
-    // Apps re-post the same notification when it updates (read, grouped);
-    // the notification's key and timestamp stay the same, so skip those.
-    // A new SMS with identical text has a new timestamp and is kept.
-    val dedupeKey = "${sbn.key}|${notification.`when`}|${(title + text).hashCode()}"
-    if (store.enqueue(sbn.packageName, title, text, sbn.postTime, dedupeKey)) {
-      store.count("queued")
-    } else {
-      store.count("repeat")
-    }
+
+    val single = listOfNotNull(
+      extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
+      extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+      lines.firstOrNull(),
+      notification.tickerText?.toString(),
+    ).firstOrNull { it.isNotBlank() }.orEmpty()
+    // The same notification re-posted keeps its key and timestamp; a new SMS
+    // with identical text gets a new timestamp and is kept.
+    return listOf(Message(single, sbn.postTime, "${sbn.key}|${notification.`when`}|${single.hashCode()}"))
   }
 
   override fun onListenerDisconnected() {

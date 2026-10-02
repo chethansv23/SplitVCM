@@ -9,8 +9,21 @@ Work for the next version happens on a `release/X.Y.Z` branch cut from `master`.
 
 ## [1.3.0] — in progress (branch `release/1.3.0`)
 
+### Added
+- **How cashback is calculated**, per card and per group, set in a popup: **No round-off** (exact, to the paisa) or **Round off per ₹ [value]** with any value: 1 rounds each spend down (HSBC: 10% of ₹125 = ₹12), 100 counts only whole ₹100 (SBI: 10% of ₹325.50 = ₹30), 150 or 120 count whole ₹150/₹120 (₹30 / ₹24). PhonePe SBI cards default to per ₹100.
+- **Cashback calculator** on each group, with every value editable: spend amount, rate (filled in from a category), and round-off (none, or per ₹ value). Shows the cashback and, for a category, the caps left. Nothing is saved.
+
+### Fixed
+- Two spends of the same amount on the same day (e.g. ₹100 at a pani puri stall in the morning and ₹100 at another shop in the evening) were merged as one. Alerts with different UPI/bank references, different merchants, or two SMS that arrived at different times (even with identical text, e.g. two ₹100 at the same shop) are now separate spends; the same spend from SMS and email is still merged.
+- Loan and limit offers ("updated pre-approved loan limit of Rs.800000", instant loan, limit increased) were captured as debits. They are now ignored.
+- A notification that bundles several messages (a Google Messages conversation, a Gmail inbox summary) is now split into separate alerts, each with its own time, instead of being read as one text.
+
 ### Changed
 - Versioning: app version shown in Capture & Privacy; each preview APK gets a new Android build number.
+- "Round down cycle total" is no longer offered in the popup; groups already using it keep working.
+
+### Tests
+- 417 tests in 26 files (about 96% line coverage), including a full retest of the 1.3.0 features: round-off with caps, pools, refunds, reward points, old data and bad values; duplicates in every direction; reference formats; calculator with 0% and unset rates.
 
 ## [1.2.0] — 2026-09-28 (PR #6, `6018e4e`)
 

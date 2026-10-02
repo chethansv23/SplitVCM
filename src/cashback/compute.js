@@ -2,10 +2,92 @@
 // accumulated. Transactions are applied in date order, so edits, moves,
 // deletions, and late arrivals all produce the same result.
 
+// How a card turns a spend into cashback, e.g. 10% on ₹320:
+// - per-transaction-floor (HSBC): floor(320 × 10%) = ₹32
+// - per-block-spent (SBI and others): only whole blocks of `blockSize`
+//   earn. Blocks of ₹100: 3 × 100 × 10% = ₹30; blocks of ₹150: 2 × 150 ×
+//   10% = ₹30; blocks of ₹120: 2 × 120 × 10% = ₹24. The block is editable.
+// - cycle-total-floor: exact per spend, the cycle total rounded down
+// - none: exact, to the paisa
 export const ROUNDING = {
   PER_TRANSACTION_FLOOR: "per-transaction-floor",
+  PER_BLOCK_SPENT: "per-block-spent",
   CYCLE_TOTAL_FLOOR: "cycle-total-floor",
   NONE: "none",
+};
+
+export const DEFAULT_BLOCK_SIZE = 100;
+
+// Earlier 1.3.0 drafts stored "per-100-spent"; read it as ₹100 blocks.
+const normaliseMethod = (rounding, blockSize) =>
+  rounding === "per-100-spent"
+    ? { rounding: ROUNDING.PER_BLOCK_SPENT, blockSize: 100 }
+    : { rounding: rounding || ROUNDING.PER_TRANSACTION_FLOOR, blockSize };
+
+// A usable block size: a positive number, otherwise the ₹100 default.
+export const blockSizeOf = (blockSize) => {
+  const n = typeof blockSize === "number" ? blockSize : parseFloat(blockSize);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_BLOCK_SIZE;
+};
+
+const truncate = (n) => (n >= 0 ? Math.floor(n) : -Math.floor(-n));
+
+// Cashback for one spend before caps. Refunds (negative amounts) mirror it.
+export const cashbackFor = (amount, ratePercent, rounding, rewardValue = 1, blockSize = DEFAULT_BLOCK_SIZE) => {
+  const method = normaliseMethod(rounding, blockSize);
+  const block = blockSizeOf(method.blockSize);
+  const base = method.rounding === ROUNDING.PER_BLOCK_SPENT ? truncate(amount / block) * block : amount;
+  const raw = (base * ratePercent * rewardValue) / 100;
+  if (method.rounding === ROUNDING.PER_TRANSACTION_FLOOR || method.rounding === ROUNDING.PER_BLOCK_SPENT) {
+    return truncate(raw);
+  }
+  // Avoid floating-point noise like 12.499999999.
+  return Math.round(raw * 100) / 100;
+};
+
+const formatRupees = (n) => (Number.isInteger(n) ? `₹${n}` : `₹${n.toFixed(2)}`);
+
+// The method as words, with a worked example on ₹320 at 10%, so the effect
+// of the block size is visible: blocks of 100 → ₹30, 150 → ₹30, 120 → ₹24.
+// The "How cashback is calculated" popup has one choice and one value:
+// no round-off, or round off per ₹N spent. N = 1 rounds each spend down
+// (HSBC); N = 100 counts only whole ₹100 (SBI); any other N works the same way.
+export const toRoundOff = (rounding, blockSize) => {
+  const method = normaliseMethod(rounding, blockSize);
+  if (method.rounding === ROUNDING.NONE) return { roundOff: false, per: 1 };
+  if (method.rounding === ROUNDING.PER_BLOCK_SPENT) return { roundOff: true, per: blockSizeOf(method.blockSize) };
+  return { roundOff: true, per: 1, cycleTotal: method.rounding === ROUNDING.CYCLE_TOTAL_FLOOR };
+};
+
+// Returns { rounding, blockSize }, or null when the per-₹ value is invalid.
+export const fromRoundOff = (roundOff, per) => {
+  if (!roundOff) return { rounding: ROUNDING.NONE, blockSize: DEFAULT_BLOCK_SIZE };
+  const n = typeof per === "number" ? per : parseFloat(per);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n === 1
+    ? { rounding: ROUNDING.PER_TRANSACTION_FLOOR, blockSize: 1 }
+    : { rounding: ROUNDING.PER_BLOCK_SPENT, blockSize: n };
+};
+
+// Words and a worked example (10% of ₹325.50) for the current method, so the
+// effect of the value is visible: per ₹1 → ₹32, per ₹100 → ₹30,
+// per ₹150 → ₹30, per ₹120 → ₹24, no round-off → ₹32.55.
+export const describeMethod = (rounding, blockSize) => {
+  const method = normaliseMethod(rounding, blockSize);
+  const block = blockSizeOf(method.blockSize);
+  const example = formatRupees(cashbackFor(325.5, 10, method.rounding, 1, block));
+  switch (method.rounding) {
+    case ROUNDING.PER_BLOCK_SPENT: {
+      const counted = truncate(325.5 / block) * block;
+      return { label: `Round off per ₹${block}`, example: `10% of ₹325.50 = ${example} (counts ₹${counted})` };
+    }
+    case ROUNDING.CYCLE_TOTAL_FLOOR:
+      return { label: "Cycle total rounded down", example: "Exact per spend; the cycle total is rounded down" };
+    case ROUNDING.NONE:
+      return { label: "No round-off", example: `10% of ₹325.50 = ${example}` };
+    default:
+      return { label: "Round off per ₹1", example: `10% of ₹325.50 = ${example}` };
+  }
 };
 
 const num = (v) => {
@@ -30,7 +112,7 @@ export const sortTransactions = (transactions) =>
   });
 
 export const computeCycle = (group) => {
-  const rounding = group.rounding || ROUNDING.PER_TRANSACTION_FLOOR;
+  const { rounding, blockSize } = normaliseMethod(group.rounding, group.blockSize);
   const rewardValue = group.rewardValue == null ? 1 : num(group.rewardValue);
   const categories = new Map((group.categories || []).map((c) => [c.id, c]));
   const pools = group.capPools || [];
@@ -51,10 +133,7 @@ export const computeCycle = (group) => {
     if (catId) spentByCategory[catId] = (spentByCategory[catId] || 0) + amount;
 
     const rate = category && !category.excluded ? num(category.percentage) : 0;
-    let raw = (amount * rate * rewardValue) / 100;
-    if (rounding === ROUNDING.PER_TRANSACTION_FLOOR) {
-      raw = raw >= 0 ? Math.floor(raw) : -Math.floor(-raw);
-    }
+    const raw = cashbackFor(amount, rate, rounding, rewardValue, blockSize);
 
     const txPools = catId ? pools.filter((p) => p.categoryIds.includes(catId)) : [];
     const catUsed = catId ? usedByCategory[catId] || 0 : 0;

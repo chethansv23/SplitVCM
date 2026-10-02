@@ -24,6 +24,9 @@ const CARD_RE =
   /(?:card|cc|a\/c|acct|account)[^\d\n]{0,25}?(?:x+|\*+|ending(?:\s+(?:with|in))?)\s*(\d{4})\b/i;
 const MASKED_RE = /(?:xx+|\*{2,})\s*(\d{4})\b/i;
 // Not followed by ".com" etc., so email addresses are not taken as UPI handles.
+// Bank reference for the payment ("UPI: 615200079966", "UPI Ref 123456",
+// "Ref No 1234567"). Two alerts with different references are different spends.
+const REFERENCE_RE = /\b(?:upi(?:\s*ref(?:erence)?)?(?:\s*no\.?)?|ref(?:erence)?(?:\s*(?:no\.?|number|#))?|rrn)[\s:#.-]*(\d{6,})\b/i;
 const VPA_RE = /\b([a-z0-9][a-z0-9.\-_]{1,}@[a-z][a-z0-9]{1,})\b(?!\.[a-z])/i;
 
 const IGNORE_RULES = [
@@ -32,7 +35,9 @@ const IGNORE_RULES = [
   ["otp", /\b\d{4,8}\b[^.\n]{0,30}\b(otp|one[\s-]time\s+password|verification\s+code)\b|\b(otp|one[\s-]time\s+password|verification\s+code)\b[^.\n\d]{0,20}\b\d{4,8}\b/i],
   ["failed", /\b(declined|failed|unsuccessful|could not be (?:processed|completed)|was not successful)\b/i],
   ["card-repayment", /\bpayment\s+(?:of\s+)?(?:rs\.?|inr|₹)?\s*[\d,.]+\s*(?:has been\s+)?received\b|\bthank you for (?:your )?payment\b/i],
-  ["promotional", /\b(pre-?approved|apply now|offer valid|click here to|t&c apply|limited period)\b/i],
+  // Offers, including loan and limit offers on a card ("updated pre-approved
+  // loan limit of Rs.800000"), are not spends.
+  ["promotional", /\b(pre[\s‐‑-]?approved|apply now|offer valid|click here to|t&c apply|limited period|(?:instant|personal|top[\s-]?up)\s+loan|loan\s+(?:limit|offer|amount|eligibility)|avail\s+(?:an?\s+)?(?:instant\s+)?loan|limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded|updated))\b/i],
 ];
 
 const CASH_RE = /\b(atm|cash\s+withdrawal|withdrawn\s+at\s+atm)\b/i;
@@ -204,6 +209,7 @@ export const parseNotification = (input) => {
     cardLastFour,
     channel,
     vpa,
+    reference: REFERENCE_RE.exec(text)?.[1] ?? null,
     accountType,
     occurredAt,
     dateFromText: Boolean(textDate),
