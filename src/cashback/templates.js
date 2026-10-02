@@ -1,4 +1,4 @@
-import { ROUNDING, withComputed } from "./compute";
+import { DEFAULT_BLOCK_SIZE, ROUNDING, withComputed } from "./compute";
 import { cycleForDate, cycleGroupName, isCycleConfigured } from "./cycles";
 import { toDateKey } from "./dates";
 import { ensureExcludedCategory } from "./groups";
@@ -134,6 +134,9 @@ export const CATALOGUE = {
           excludedCategory(EXCLUDED_COMMON),
         ],
         rewardValue: 1,
+        // SBI credits rewards per full ₹100 spent.
+        rounding: ROUNDING.PER_BLOCK_SPENT,
+        blockSize: 100,
         notes:
           "Rewards are points; the reward-to-rupee value (default ₹1/point) applies where statement-credit redemption is available. SBI Card has announced benefit revisions — confirm against your card's current terms.",
         sourceLinks: [
@@ -201,6 +204,7 @@ export const normaliseTemplate = (t) => ({
   capPools: [],
   groupCap: null,
   rounding: ROUNDING.PER_TRANSACTION_FLOOR,
+  blockSize: DEFAULT_BLOCK_SIZE,
   rewardValue: 1,
   merchantRules: [],
   notes: "",
@@ -227,6 +231,7 @@ export const createCycleGroup = (template, date, now = new Date()) => {
     capPools: template.capPools.map((p) => ({ ...p, categoryIds: [...p.categoryIds] })),
     groupCap: template.groupCap,
     rounding: template.rounding,
+    blockSize: template.blockSize,
     rewardValue: template.rewardValue,
     transactions: [],
     totalCashback: 0,
@@ -280,6 +285,7 @@ export const applyTemplateToGroup = (template, group) => {
     capPools: template.capPools.map((p) => ({ ...p, categoryIds: [...p.categoryIds] })),
     groupCap: template.groupCap,
     rounding: template.rounding,
+    blockSize: template.blockSize,
     rewardValue: template.rewardValue,
   });
 };
@@ -328,6 +334,7 @@ export const trackGroupWithCard = (state, groupId, { cardLastFour, cycle }, now 
     capPools: (withExcluded.capPools || []).map((p) => ({ ...p, categoryIds: [...p.categoryIds] })),
     groupCap: withExcluded.groupCap ?? null,
     rounding: withExcluded.rounding || ROUNDING.PER_TRANSACTION_FLOOR,
+    blockSize: withExcluded.blockSize ?? DEFAULT_BLOCK_SIZE,
     rewardValue: withExcluded.rewardValue ?? 1,
     lastVerifiedAt: toDateKey(now),
     notes: "Created from a manual cashback group. Add merchant keywords to categories, or use Remember in review, so alerts can be categorised.",

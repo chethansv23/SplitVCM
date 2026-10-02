@@ -13,6 +13,7 @@ SplitVCM is an Expo-powered React Native app for keeping track of shared expense
 
 - Card templates for HDFC Millennia, HSBC Live+, HSBC RuPay, Airtel Axis, PhonePe SBI (PURPLE / SELECT BLACK), and Amazon Pay ICICI (Prime / non-Prime), plus custom cards. Every rate, cap, keyword, and cycle is editable.
 - One cycle group per card per billing cycle (for example `HSBC Live+ · 10 Sep–09 Oct 2026`), created on request. The app offers the next cycle when one ends, but never creates it silently.
+- How cashback is calculated, per card or group, set in a popup: no round-off, or round off per ₹ value — 1 rounds each spend down (HSBC), 100 counts only whole ₹100 (SBI), and any other value (120, 150 …) works the same way. A cashback calculator on each group lets you change the amount, rate and round-off to see what a spend would earn.
 - Category caps, shared cap pools (such as Airtel Axis's combined ₹500 for Swiggy, Zomato, and BigBasket), an overall cycle cap, per-card rounding, and a reward-point value.
 - Cashback is recalculated from scratch after every change, so edits, moves, deletions, refunds, and late alerts always give the same result.
 - Edit any transaction, or move it to another cycle or category. You get a warning if its date is outside the destination cycle.
@@ -27,7 +28,8 @@ SplitVCM is an Expo-powered React Native app for keeping track of shared expense
 - Review actions: Add, Edit and add, No cashback, Skip, Ignore, Create cycle group, and Link refund.
 - "Remember this merchant" teaches the card a rule, so the next alert from that merchant is added automatically.
 - Alerts that arrived before their card or cycle was set up are re-checked and moved in automatically once it is.
-- The same spend arriving by SMS, app notification, and email is recorded only once.
+- The same spend arriving by SMS, app notification, and email is recorded only once. Two spends of the same amount on the same day stay separate when their UPI/bank references or merchants differ, or when they are two SMS that arrived at different times (even with identical text).
+- Loan and limit offers ("pre-approved loan limit", "instant loan", "limit increased") are ignored, and a notification that bundles several messages is split into separate alerts.
 - **Paste an alert** runs any text through the same pipeline. It works in Expo Go too.
 
 **Security and privacy**
@@ -60,6 +62,25 @@ Scan the QR code with Expo Go, or press `a` for an Android emulator. On first la
 | `npm run web` | Start Expo for the web. |
 | `npm test` | Run the unit and screen tests (Jest). |
 | `npm run test:watch` | Re-run tests on file changes. |
+
+## How cashback is calculated
+
+Tap **How cashback is calculated** on a card, a group, or when creating a manual group. In the popup, choose:
+
+- **No round-off**: exact cashback, to the paisa.
+- **Round off per ₹ [value]**: the spend is counted in full steps of the value, then the cashback is rounded down.
+
+| Value | 10% on ₹325.50 | Typical card |
+| --- | --- | --- |
+| 1 | ₹32 (each spend rounded down) | HSBC |
+| 100 | ₹30 (counts ₹300) | SBI |
+| 120 | ₹24 (counts ₹240) | — |
+| 150 | ₹30 (counts ₹300) | — |
+| No round-off | ₹32.55 | — |
+
+Changing it on a group recalculates that group's transactions. On a card, it applies to new cycles; use **Apply to open cycles** to update existing ones.
+
+The **Cashback calculator** on each group lets you change the spend amount, rate (filled in from a category) and round-off, and shows the cashback and caps left. Nothing is saved.
 
 ## Setting up cashback tracking
 
@@ -154,30 +175,32 @@ Under **Capture & Privacy → Paste an alert to test**, paste any SMS or notific
 npm test
 ```
 
-323 tests in 24 files, about 96% of lines covered. The suites cover:
+417 tests in 26 files, about 96% of lines covered. The suites cover:
 
 | Suite | Tests | What it checks |
 | --- | ---: | --- |
-| `src/cashback/__tests__/parser.test.js` | 33 | Sample alerts per bank (`__tests__/fixtures/alerts.js`, including real HSBC wording with digits changed), ignored message types (OTP, failed, bill payment, cashback posting, bank-account debit), date and time formats, UPI handles |
+| `src/cashback/__tests__/parser.test.js` | 38 | Sample alerts per bank (`__tests__/fixtures/alerts.js`, including real HSBC wording with digits changed), ignored message types (OTP, failed, bill payment, cashback posting, bank-account debit), date and time formats, arrival time for date-only alerts, UPI handles |
 | `negative.test.js` | 56 | Things that must not happen: non-transaction texts captured, auto-add when unsure, false duplicates; bad IDs, amounts, cycles, cards and backups rejected without changing data |
-| `inbox.test.js` | 25 | Capture pipeline, duplicates across sources (including date-only alerts), every review action, retention, failed-alert recovery, re-checking waiting alerts after a card or cycle is set up |
+| `v130.test.js` | 31 | 1.3.0 fixes: round-off per ₹ value (1/100/120/150) or none, the popup model, same-amount spends kept separate, loan and limit offers ignored |
+| `v130.edge.test.js` | 45 | 1.3.0 retest: round-off with caps, pools, refunds, reward points, old data and bad values; round-off kept through cards, linking and backups; duplicates in every direction (references, merchants, days, same SMS delivered twice vs two real spends); reference formats |
+| `inbox.test.js` | 26 | Capture pipeline, duplicates across sources, every review action, retention, failed-alert recovery, re-checking waiting alerts |
 | `matcher.test.js` | 20 | Auto-add vs each review reason, learned rules, UPI matching |
-| `compute.test.js` | 14 | Rates, category caps, cap pools, group cap, refunds, rounding modes, arrival order |
+| `compute.test.js` | 14 | Rates, category caps, cap pools, group cap, refunds, arrival order |
 | `templates.test.js` | 14 | Card catalogue, variants, cycle groups, next-cycle offers, applying card edits |
-| `trackGroup.test.js` | 13 | Linking a manual group to its card digits and cycle, alerts reaching it afterwards, invalid or duplicate digits |
+| `trackGroup.test.js` | 13 | Linking a manual group to its card digits and cycle |
 | `groups.test.js` | 12 | Edit, move and delete with recalculation; category deletion protection |
 | `cycles.test.js` | 11 | Statement and calendar cycles, start days 29–31, year boundaries, IST midnight |
 | `migration.test.js` | 11 | Upgrading data from the original app version, backup export and import |
-| `captureDiagnostics.test.js` | 7 | Each "Capture status" message |
+| `captureDiagnostics.test.js` | 8 | Each "Capture status" message |
 | `store.test.js` | 6 | One-time migration, ordered writes, retry after a failed load, unreadable old data |
 | `capture.test.js` | 6 | Native queue → pipeline, Expo Go behaviour, consent-gated listener config, pasted alerts |
 | `src/auth/__tests__/pin.test.js` | 8 | PIN rules, SecureStore, legacy PIN migration |
 | `src/groups/__tests__/settlement.test.js` | 6 | Expense-split totals and settlements, including uneven decimal splits |
-| `modules/notification-capture/__tests__/index.test.js` | 3 | JS wrapper with and without the native module |
-| `components/__tests__/select.test.js` | 4 | The in-app dropdown: the chosen value is visible in a fixed colour (dark-mode regression), open, choose, cancel |
-| `screens/__tests__/reviewAndSettings.test.js` | 22 | Every review action, "Set up card" shortcut, Capture & Privacy (consent, setup steps, allowed apps, paste test, backup) |
+| `modules/notification-capture/__tests__/index.test.js` | 4 | JS wrapper with and without the native module, and on an older build |
+| `components/__tests__/select.test.js` | 4 | The in-app dropdown (dark-mode regression), open, choose, cancel |
+| `screens/__tests__/groupScreens.test.js` | 24 | Group screen actions, round-off popup (1/100/120/150/none, invalid value, cancel), calculator (every value editable, 0% and unset rates, caps), card linking, expense-split screens |
+| `screens/__tests__/reviewAndSettings.test.js` | 24 | Every review action, "Set up card", Capture & Privacy, app version |
 | `screens/__tests__/cards.test.js` | 16 | Cashback list, Cards & cycles, card editor, setting up a card from a review item |
-| `screens/__tests__/groupScreens.test.js` | 16 | Group screen actions, linking a manual group to its card, expense-split screens |
 | `screens/__tests__/editors.test.js` | 11 | Category and transaction editors, moving between cycles |
 | `screens/__tests__/cashbackScreens.test.js` | 4 | Review inbox, group details, manual category edit and delete |
 | `__tests__/App.test.js`, `App.review.test.js` | 5 | PIN setup and unlock, when the "Needs review" prompt appears |
@@ -195,6 +218,10 @@ Tests run in the `Asia/Kolkata` time zone (`jest.global-setup.js`) so cycle boun
 **Add your own alerts.** Real bank wording varies. Add anonymised copies of your alerts (remove your name, balances, and reference numbers) to `src/cashback/__tests__/fixtures/alerts.js`, along with the values you expect, and run `npm test`. If one fails, adjust the patterns in `src/cashback/parser.js`.
 
 The Kotlin listener cannot be unit-tested here. Check it on a device with a development build.
+
+## Versions and releases
+
+Each merged PR is a version, recorded in [CHANGELOG.md](CHANGELOG.md). The version is set in `app.json` and `package.json`, shown at the bottom of **Capture & Privacy**, and tagged in git as `vX.Y.Z`. Work for the next version happens on a `release/X.Y.Z` branch cut from `master`. Release APKs use the `preview` profile, which gives each build a new Android build number so it installs over the previous one.
 
 ## Data and storage
 
