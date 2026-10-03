@@ -19,11 +19,20 @@ const VPA_MERCHANTS = [
   ["phonepe", "PhonePe"], ["airtel", "Airtel"], ["bookmyshow", "BookMyShow"],
 ];
 
-const AMOUNT_RE = /(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i;
+// The first amount in the alert, with its currency. A foreign-currency spend
+// ("USD 20.00 spent") is kept, but its amount is left for review: the INR
+// figure isn't in the alert, and later numbers (Avl limit) aren't the spend.
+const AMOUNT_RE = /(rs\.?|inr|₹|usd|eur|gbp|aed|sgd|€|£)\s*([\d,]+(?:\.\d{1,2})?)/i;
+const INR_RE = /^(?:rs\.?|inr|₹)$/i;
 const CARD_RE =
-  /(?:card|cc|a\/c|acct|account)[^\d\n]{0,25}?(?:x+|\*+|ending(?:\s+(?:with|in))?)\s*(\d{4})\b/i;
+  /(?:card|cc|a\/c|acct|account)[^\d\n]{0,25}?(?:x+|\*+|ending(?:\s+(?:with|in))?)\s*\d?(\d{4})\b/i;
+// "HDFC Bank Card 1234", "Card No. 1234" (no mask)
+const PLAIN_CARD_RE = /\bcard(?:\s+no\.?)?\s+(\d{4})\b/i;
 const MASKED_RE = /(?:xx+|\*{2,})\s*(\d{4})\b/i;
 // Not followed by ".com" etc., so email addresses are not taken as UPI handles.
+// Bank reference for the payment ("UPI: 615200079966", "UPI Ref 123456",
+// "Ref No 1234567"). Two alerts with different references are different spends.
+const REFERENCE_RE = /\b(?:upi(?:\s*ref(?:erence)?)?(?:\s*no\.?)?|ref(?:erence)?(?:\s*(?:no\.?|number|#))?|rrn)[\s:#.-]*(\d{6,})\b/i;
 const VPA_RE = /\b([a-z0-9][a-z0-9.\-_]{1,}@[a-z][a-z0-9]{1,})\b(?!\.[a-z])/i;
 
 const IGNORE_RULES = [
@@ -32,7 +41,9 @@ const IGNORE_RULES = [
   ["otp", /\b\d{4,8}\b[^.\n]{0,30}\b(otp|one[\s-]time\s+password|verification\s+code)\b|\b(otp|one[\s-]time\s+password|verification\s+code)\b[^.\n\d]{0,20}\b\d{4,8}\b/i],
   ["failed", /\b(declined|failed|unsuccessful|could not be (?:processed|completed)|was not successful)\b/i],
   ["card-repayment", /\bpayment\s+(?:of\s+)?(?:rs\.?|inr|₹)?\s*[\d,.]+\s*(?:has been\s+)?received\b|\bthank you for (?:your )?payment\b/i],
-  ["promotional", /\b(pre-?approved|apply now|offer valid|click here to|t&c apply|limited period)\b/i],
+  // Offers, including loan and limit offers on a card ("updated pre-approved
+  // loan limit of Rs.800000"), are not spends.
+  ["promotional", /\b(pre[\s‐‑-]?approved|apply now|offer valid|click here to|t&c apply|limited period|(?:instant|personal|top[\s-]?up)\s+loan|loan\s+(?:limit|offer|amount|eligibility)|avail\s+(?:an?\s+)?(?:instant\s+)?loan|limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded|updated))\b/i],
 ];
 
 const CASH_RE = /\b(atm|cash\s+withdrawal|withdrawn\s+at\s+atm)\b/i;
@@ -41,10 +52,20 @@ const CASH_RE = /\b(atm|cash\s+withdrawal|withdrawn\s+at\s+atm)\b/i;
 const REFUND_RE = /\b(refund(?:ed)?|reversal|reversed)\b/i;
 const CREDITED_RE = /\bcredited\b/i;
 const CASHBACK_POSTING_RE = /\bcashback\b.{0,80}?\bcredited\b|\bcredited\b.{0,80}?\bcashback\b/i;
-const CARD_MENTION_RE = /\b(card|cc)\b/i;
+// Rewards you earned or can claim ("You've earned ₹75 CRED cashback on your
+// recent purchase… claim it in the next 7 days") are not spends, even though
+// they mention an amount and a purchase.
+const REWARD_RE = /\b(?:earned|won|unlocked|claim(?:ed)?|redeem(?:ed)?)\b[\s\S]{0,80}?\b(?:cashback|reward|rewards|points|coins|voucher|scratch\s*card)\b|\b(?:cashback|reward|rewards|points|coins|voucher|scratch\s*card)\b[\s\S]{0,80}?\b(?:earned|won|unlocked|claim)\b/i;
+// Words that only a real spend alert uses. When one is present the alert is
+// kept even if it also has an offer, loan, reward or OTP footer: skipping a
+// real spend is worse than reviewing an extra alert.
+const SPEND_PHRASE_RE = /\b(?:spent|debited|deducted|charged|withdrawn|swiped|billed|used\s+(?:at|for)|thank\s+you\s+for\s+using|made\s+using|purchase\s+of|is\s+successful)\b/i;
+// "card" without a leading word boundary also matches OneCard and BOBCARD;
+// "Credit A/c" is a card account, not a bank account.
+const CARD_MENTION_RE = /card\b|\bcc\b|\bcredit\s*(?:a\/c|acct|account)\b/i;
 const ACCOUNT_MENTION_RE = /\b(a\/c|acct|account)\b/i;
 const DEBIT_RE =
-  /\b(spent|debited|charged|used|paid|purchase|txn|transaction|sent|done|withdrawn)\b/i;
+  /\b(spent|spend|debited|debit|deducted|charged|used|using|paid|payment|purchase|txn|trxn|transaction|sent|done|withdrawn|swiped|billed|made|processed|successful)\b/i;
 const BALANCE_RE = /\b(avl|available)\s*(?:bal|balance|lmt|limit|credit\s+limit)\b/i;
 
 const clean = (s) =>
@@ -126,7 +147,11 @@ export const parseNotification = (input) => {
   const text = [input.title, input.text].filter(Boolean).join(" \n ");
   const base = { ruleId: PARSER_RULE_ID };
 
+  const clearSpend = SPEND_PHRASE_RE.test(text);
   for (const [reason, re] of IGNORE_RULES) {
+    // A clear spend with an offer, loan or OTP footer is still a spend. A
+    // declined or failed payment, or a bill payment, is not.
+    if (clearSpend && (reason === "promotional" || reason === "otp")) continue;
     if (re.test(text)) return { ...base, kind: "ignore", ignoreReason: reason };
   }
   if (CASH_RE.test(text) && !input.includeCashWithdrawals) {
@@ -134,12 +159,15 @@ export const parseNotification = (input) => {
   }
 
   const amountMatch = AMOUNT_RE.exec(text);
-  const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, "")) : null;
+  const currency = amountMatch ? (INR_RE.test(amountMatch[1]) ? "INR" : amountMatch[1].toUpperCase()) : null;
+  const amount = amountMatch && currency === "INR" ? parseFloat(amountMatch[2].replace(/,/g, "")) : null;
   const isRefund = REFUND_RE.test(text);
   const isDebit = DEBIT_RE.test(text);
   const isCredit = isRefund || (!isDebit && CREDITED_RE.test(text));
 
-  if (!isRefund && CASHBACK_POSTING_RE.test(text)) {
+  // A real spend alert can mention cashback ("…debited… Cashback will be
+  // credited"), so these rules only apply when there is no spend phrase.
+  if (!isRefund && !clearSpend && (CASHBACK_POSTING_RE.test(text) || REWARD_RE.test(text))) {
     return { ...base, kind: "ignore", ignoreReason: "cashback-posting" };
   }
   // Savings/current-account debits are not card spends.
@@ -162,7 +190,7 @@ export const parseNotification = (input) => {
 
   const direction = isCredit ? "credit" : "debit";
   const vpaMatch = VPA_RE.exec(text);
-  const cardMatch = CARD_RE.exec(text) || MASKED_RE.exec(text);
+  const cardMatch = CARD_RE.exec(text) || MASKED_RE.exec(text) || PLAIN_CARD_RE.exec(text);
   const cardLastFour = cardMatch ? cardMatch[1] : null;
 
   let merchant = extractMerchant(text);
@@ -204,6 +232,9 @@ export const parseNotification = (input) => {
     cardLastFour,
     channel,
     vpa,
+    reference: REFERENCE_RE.exec(text)?.[1] ?? null,
+    // "INR", or e.g. "USD" when the spend is in a foreign currency (amount null).
+    currency,
     accountType,
     occurredAt,
     dateFromText: Boolean(textDate),

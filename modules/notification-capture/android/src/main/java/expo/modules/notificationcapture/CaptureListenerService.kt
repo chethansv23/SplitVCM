@@ -26,44 +26,107 @@ class CaptureListenerService : NotificationListenerService() {
       return
     }
 
-    val extras = notification.extras
-    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-    // SMS apps (e.g. Google Messages) use MessagingStyle, where the message
-    // body can be only in EXTRA_MESSAGES; read every text field there is.
-    val parts = linkedSetOf<String>()
-    extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.let { parts.add(it.toString()) }
-    extras.getCharSequence(Notification.EXTRA_TEXT)?.let { parts.add(it.toString()) }
-    extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { parts.add(it.toString()) }
-    @Suppress("DEPRECATION")
-    extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.forEach { m ->
-      (m as? android.os.Bundle)?.getCharSequence("text")?.let { parts.add(it.toString()) }
-    }
-    notification.tickerText?.let { parts.add(it.toString()) }
-    val text = parts.filter { it.isNotBlank() }.joinToString("\n")
-    val looksLikeSpend = looksLikeTransaction("$title $text")
-    if (!store.isAllowed(sbn.packageName)) {
-      if (looksLikeSpend) {
-        // A spend alert from an app that isn't allowed: suggest adding it.
-        store.recordBlocked(sbn.packageName)
-        store.count("blocked")
-      } else {
-        store.count("otherApp")
+    val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+    val messages = messagesOf(sbn, notification)
+    val allowed = store.isAllowed(sbn.packageName)
+    for (message in messages) {
+      val looksLikeSpend = looksLikeTransaction("$title ${message.text}")
+      if (!allowed) {
+        if (looksLikeSpend) {
+          // A spend alert from an app that isn't allowed: suggest adding it.
+          store.recordBlocked(sbn.packageName)
+          store.count("blocked")
+        } else {
+          store.count("otherApp")
+        }
+        continue
       }
-      return
+      if (message.hidden) {
+        // Android replaced the text (it treats the notification as containing
+        // a code), so there is nothing to read.
+        store.count("hidden")
+        store.recordSkipped(sbn.packageName, title, message.text)
+        continue
+      }
+      if (!looksLikeSpend) {
+        store.count("notTransaction")
+        store.recordSkipped(sbn.packageName, title, message.text)
+        continue
+      }
+      if (store.enqueue(sbn.packageName, title, message.text, message.time, message.dedupeKey)) {
+        store.count("queued")
+      } else {
+        store.count("repeat")
+      }
     }
-    if (!looksLikeSpend) {
-      store.count("notTransaction")
-      store.recordSkipped(sbn.packageName, title, text)
-      return
+  }
+
+  // One message inside a notification. Apps re-post a notification whenever
+  // it changes (a new SMS in the conversation, marked read), so each message
+  // has a stable key and older messages aren't queued again. `hidden` means
+  // Android replaced all of its text with a placeholder.
+  private data class Message(val text: String, val time: Long, val dedupeKey: String, val hidden: Boolean = false)
+
+  private fun isHidden(text: String) = HIDDEN.containsMatchIn(text)
+
+  // A notification can bundle several messages: Google Messages lists a
+  // conversation's SMS as MessagingStyle messages, and Gmail lists several
+  // emails as inbox lines. Several visible messages are separate alerts;
+  // joining them would let a loan offer borrow "spent" from another message.
+  //
+  // A single message is read from every text field and the fields are joined.
+  // Android can hide the text in some fields ("Sensitive notification content
+  // hidden") while another field still has it, so no one field is trusted.
+  private fun messagesOf(sbn: StatusBarNotification, notification: Notification): List<Message> {
+    val extras = notification.extras
+    val pkg = sbn.packageName
+
+    @Suppress("DEPRECATION")
+    val styled = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+      ?.mapNotNull { it as? android.os.Bundle }
+      ?.mapNotNull { b ->
+        val text = b.getCharSequence("text")?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val time = b.getLong("time").takeIf { it > 0 } ?: sbn.postTime
+        Message(text, time, "$pkg|msg|$time|${text.hashCode()}")
+      }
+      .orEmpty()
+    val visibleStyled = styled.filterNot { isHidden(it.text) }
+    if (visibleStyled.size > 1) return visibleStyled
+
+    val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+      ?.map { it.toString() }
+      ?.filter { it.isNotBlank() && !isHidden(it) }
+      .orEmpty()
+    if (lines.size > 1) {
+      return lines.map { Message(it, sbn.postTime, "$pkg|line|${it.hashCode()}") }
     }
-    // Apps re-post the same notification when it updates (read, grouped);
-    // the notification's key and timestamp stay the same, so skip those.
-    // A new SMS with identical text has a new timestamp and is kept.
-    val dedupeKey = "${sbn.key}|${notification.`when`}|${(title + text).hashCode()}"
-    if (store.enqueue(sbn.packageName, title, text, sbn.postTime, dedupeKey)) {
-      store.count("queued")
+
+    val parts = linkedSetOf<String>()
+    listOfNotNull(
+      extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString(),
+      extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+      lines.firstOrNull(),
+      visibleStyled.firstOrNull()?.text,
+      notification.tickerText?.toString(),
+    ).filter { it.isNotBlank() && !isHidden(it) }.forEach { parts.add(it) }
+    val text = parts.joinToString("\n")
+
+    if (text.isEmpty()) {
+      // Every field was hidden (or empty). Report it instead of dropping it silently.
+      val placeholder = listOfNotNull(
+        extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+        styled.firstOrNull()?.text,
+      ).firstOrNull { it.isNotBlank() }.orEmpty()
+      return listOf(Message(placeholder, sbn.postTime, "${sbn.key}|${notification.`when`}|hidden", hidden = isHidden(placeholder)))
+    }
+
+    // One SMS keeps the same key across re-posts; otherwise the notification's
+    // own key and timestamp identify it (a new SMS gets a new timestamp).
+    val single = visibleStyled.singleOrNull()
+    return if (single != null) {
+      listOf(Message(text, single.time, "$pkg|msg|${single.time}|${single.text.hashCode()}"))
     } else {
-      store.count("repeat")
+      listOf(Message(text, sbn.postTime, "${sbn.key}|${notification.`when`}|${text.hashCode()}"))
     }
   }
 
@@ -74,13 +137,22 @@ class CaptureListenerService : NotificationListenerService() {
   }
 
   companion object {
-    private val AMOUNT = Regex("(rs\\.?|inr|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+    // This filter decides what reaches the app, so it errs on the side of
+    // keeping: a missed real spend is worse than an extra alert to review.
+    // An amount in any common currency…
+    private val AMOUNT = Regex("(rs\\.?|inr|₹|usd|eur|gbp|aed|sgd|€|£)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+    // …plus a word banks use for a spend…
     private val KEYWORD = Regex(
-      "\\b(spent|debited|charged|paid|purchase|txn|transaction|used|credited|refund|reversal|sent|withdrawn)\\b",
+      "\\b(spent|spend|debited|debit|deducted|charged|paid|payment|purchase|txn|trxn|transaction|used|using|swiped|billed|made|processed|successful|credited|refund|reversal|reversed|sent|withdrawn)\\b",
       RegexOption.IGNORE_CASE
     )
+    // …or a mention of a card, account or UPI.
+    private val CONTEXT = Regex("(card\\b|\\bcc\\b|\\ba/c\\b|\\bacct\\b|\\baccount\\b|\\bupi\\b)", RegexOption.IGNORE_CASE)
+
+    // Placeholders Android shows instead of hidden notification text.
+    private val HIDDEN = Regex("(sensitive notification content hidden|notification content hidden|contents? hidden)", RegexOption.IGNORE_CASE)
 
     fun looksLikeTransaction(text: String): Boolean =
-      AMOUNT.containsMatchIn(text) && KEYWORD.containsMatchIn(text)
+      AMOUNT.containsMatchIn(text) && (KEYWORD.containsMatchIn(text) || CONTEXT.containsMatchIn(text))
   }
 }

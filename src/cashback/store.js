@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 
-import { DEFAULT_SETTINGS } from "./inbox";
+import { ALLOWLIST_VERSION, DEFAULT_ALLOWED_PACKAGES, DEFAULT_SETTINGS, EXTRA_SMS_PACKAGES } from "./inbox";
 import { CURRENT_SCHEMA_VERSION, migrateGroups } from "./migration";
 import { normaliseTemplate } from "./templates";
 
@@ -58,13 +58,25 @@ export const ensureMigrated = async () => {
   return { migrated: true, count: migrated.length };
 };
 
+// Saved settings keep the user's own allowed-app list, so apps added to the
+// defaults later are merged in once, by allowlist version. Apps the user
+// removes afterwards stay removed.
+export const upgradeSettings = (saved) => {
+  const settings = { ...DEFAULT_SETTINGS, ...saved };
+  if ((saved.allowlistVersion ?? 1) < ALLOWLIST_VERSION) {
+    settings.allowedPackages = [...new Set([...(saved.allowedPackages || DEFAULT_ALLOWED_PACKAGES), ...EXTRA_SMS_PACKAGES])];
+    settings.allowlistVersion = ALLOWLIST_VERSION;
+  }
+  return settings;
+};
+
 const load = async () => {
   await ensureMigrated();
   return {
     groups: await readJson(KEYS.groups, []),
     templates: (await readJson(KEYS.templates, [])).map(normaliseTemplate),
     candidates: await readJson(KEYS.candidates, []),
-    settings: { ...DEFAULT_SETTINGS, ...(await readJson(KEYS.settings, {})) },
+    settings: upgradeSettings(await readJson(KEYS.settings, {})),
   };
 };
 

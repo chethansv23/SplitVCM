@@ -20,7 +20,9 @@ export const explainCapture = ({ available, granted, settings, diagnostics: d })
   add(granted, "Notification access granted",
     granted ? null : 'Tap "Open notification access" and enable SplitVCM. If it is greyed out, first allow restricted settings in App info.');
 
-  const connected = (d?.connectedCount || 0) > 0;
+  // "Reset counters" clears the connect count, but any notification seen
+  // proves the listener is running.
+  const connected = (d?.connectedCount || 0) > 0 || (d?.postedCount || 0) > 0;
   add(connected, "Listener connected by Android",
     connected ? null : 'Android has not started the listener yet. Toggle SplitVCM off and on in notification access, or tap "Reconnect listener", then restart the phone if needed.');
 
@@ -32,6 +34,10 @@ export const explainCapture = ({ available, granted, settings, diagnostics: d })
     add(!enabled, `Seen while capture was off: ${d.disabledCount}`, enabled ? null : "Switch capture on, then send the alert again.");
   }
   if (d?.otherAppCount) add(true, `From other apps, ignored: ${d.otherAppCount}`);
+  if (d?.hiddenCount) {
+    add(false, `Text hidden by Android: ${d.hiddenCount}`,
+      'Android hid the text of these notifications ("Sensitive notification content hidden"), usually because it thinks they contain a one-time code. SplitVCM can\'t read them; copy the SMS and use "Paste an alert to test" below.');
+  }
   if (d?.notTransactionCount) {
     add(true, `From allowed apps, not a spend: ${d.notTransactionCount}`,
       "Only texts with an amount (Rs/INR/₹) and a word like spent, debited, paid or used are kept. The last few are listed below.");

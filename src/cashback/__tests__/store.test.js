@@ -65,3 +65,22 @@ test("unreadable v0 data does not block the app and is kept as a backup", async 
   await expect(getState()).resolves.toMatchObject({ groups: [] });
   expect(await AsyncStorage.getItem(KEYS.backupV0)).toBe("{not json");
 });
+
+describe("allowed SMS apps added after 1.3.0", () => {
+  const { upgradeSettings } = require("../store");
+  test("an existing install gets Truecaller and SMS Organizer once, keeping its own list", () => {
+    const s = upgradeSettings({ allowedPackages: ["com.google.android.apps.messaging", "com.my.bank"] });
+    expect(s.allowedPackages).toEqual(expect.arrayContaining([
+      "com.google.android.apps.messaging", "com.my.bank", "com.truecaller", "com.microsoft.android.smsorganizer",
+    ]));
+    expect(s.allowlistVersion).toBe(2);
+  });
+  test("an app the user removed later stays removed", () => {
+    const s = upgradeSettings({ allowlistVersion: 2, allowedPackages: ["com.google.android.apps.messaging"] });
+    expect(s.allowedPackages).toEqual(["com.google.android.apps.messaging"]);
+  });
+  test("a fresh install has them by default", async () => {
+    const st = await getState();
+    expect(st.settings.allowedPackages).toEqual(expect.arrayContaining(["com.truecaller", "com.microsoft.android.smsorganizer"]));
+  });
+});

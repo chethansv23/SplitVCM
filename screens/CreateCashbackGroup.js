@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import CardTrackingFields, { cycleFromFields, EMPTY_TRACKING } from "../components/cashback/CardTrackingFields";
+import CalculationMethodFields from "../components/cashback/CalculationMethodFields";
 import { Btn, Field, ui } from "../components/cashback/ui";
 import { recheckReview } from "../src/cashback/capture";
-import { withComputed } from "../src/cashback/compute";
+import { DEFAULT_BLOCK_SIZE, ROUNDING, withComputed } from "../src/cashback/compute";
 import { newId } from "../src/cashback/ids";
 import { updateState } from "../src/cashback/store";
 import { trackGroupWithCard } from "../src/cashback/templates";
@@ -20,6 +21,7 @@ export default function CreateCashbackGroup({ navigation }) {
   const [cap, setCap] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [tracked, setTracked] = useState(EMPTY_TRACKING);
+  const [method, setMethod] = useState({ rounding: ROUNDING.PER_TRANSACTION_FLOOR, blockSize: DEFAULT_BLOCK_SIZE });
 
   const clearForm = () => {
     setCategoryName("");
@@ -98,7 +100,8 @@ export default function CreateCashbackGroup({ navigation }) {
       ],
       capPools: [],
       groupCap: groupCap ? parseFloat(groupCap) : null,
-      rounding: "per-transaction-floor",
+      rounding: method.rounding,
+      blockSize: method.blockSize,
       rewardValue: 1,
       transactions: [],
       createdAt: new Date().toISOString(),
@@ -135,6 +138,8 @@ export default function CreateCashbackGroup({ navigation }) {
         placeholder="Leave blank for no cap"
         keyboardType="numeric"
       />
+
+      <CalculationMethodFields rounding={method.rounding} blockSize={method.blockSize} onChange={setMethod} />
 
       <Text style={[ui.title, { marginTop: 16 }]}>{editingId ? "Edit Category" : "Add Categories"}</Text>
       <Field value={categoryName} onChangeText={setCategoryName} placeholder="Category name (e.g. Recharge)" style={{ marginTop: 6 }} />
