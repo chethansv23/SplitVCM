@@ -119,9 +119,11 @@ class CaptureStore(context: Context) {
     private const val KEY_BLOCKED = "blockedPackages"
     private const val KEY_SKIPPED = "recentSkipped"
     private const val MAX_SKIPPED = 3
-    private const val MAX_QUEUE = 500
+    // Kept until the app is opened; generous because the filter keeps extra
+    // alerts rather than risk missing a real spend.
+    private const val MAX_QUEUE = 2000
     private const val MAX_RECENT = 100
     private val LOCK = Any()
-    val EVENTS = listOf("connected", "disconnected", "posted", "disabled", "otherApp", "notTransaction", "blocked", "queued", "repeat")
+    val EVENTS = listOf("connected", "disconnected", "posted", "disabled", "otherApp", "hidden", "notTransaction", "blocked", "queued", "repeat")
   }
 }

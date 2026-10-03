@@ -106,5 +106,6 @@ Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText
 - Preserve the existing AsyncStorage keys. Changes to the cashback data shape need a new `CURRENT_SCHEMA_VERSION` and a migration in `src/cashback/migration.js`.
 - Keep cashback logic in `src/cashback/` pure (no React Native imports) and cover it with tests; screens should only call it.
 - Add real (anonymised) alert samples to the parser fixtures whenever a bank's wording isn't parsed.
+- Capture favours recall: never skip a real spend, accept extra alerts to review. Ignore rules (offers, loans, rewards, OTP) don't apply when the text has a clear spend phrase. Every format in `src/cashback/__tests__/fixtures/corpus.js` must pass both the Kotlin quick filter and the parser (`recall.test.js`); keep the filter's regexes in `CaptureListenerService.kt` readable by that test.
 - Use `Select` from `components/cashback/ui.js` for choices, not the native Android picker: the native one follows the phone's dark mode and drew white text on white fields. Give text inputs an explicit text colour for the same reason.
 - Update this guide and the README when adding new screens, storage models, scripts, or setup requirements.

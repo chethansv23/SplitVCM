@@ -29,7 +29,7 @@ SplitVCM is an Expo-powered React Native app for keeping track of shared expense
 - "Remember this merchant" teaches the card a rule, so the next alert from that merchant is added automatically.
 - Alerts that arrived before their card or cycle was set up are re-checked and moved in automatically once it is.
 - The same spend arriving by SMS, app notification, and email is recorded only once. Two spends of the same amount on the same day stay separate when their UPI/bank references or merchants differ, or when they are two SMS that arrived at different times (even with identical text).
-- Loan and limit offers ("pre-approved loan limit", "instant loan", "limit increased") are ignored, and a notification that bundles several messages is split into separate alerts.
+- Loan and limit offers ("pre-approved loan limit", "instant loan", "limit increased") and cashback or reward offers ("You've earned ₹75 cashback… claim it") are ignored, unless the text is clearly a spend ("spent", "debited", "used at"). A notification that bundles several messages is split into separate alerts.
 - **Paste an alert** runs any text through the same pipeline. It works in Expo Go too.
 
 **Security and privacy**
@@ -132,7 +132,7 @@ Open **Cashback → Settings → Capture & Privacy**:
 4. Tap **Open battery settings** and set SplitVCM to *Unrestricted* / *Don't optimise*. Xiaomi, Oppo, Vivo, and Samsung phones otherwise stop the listener.
 5. Check **Allowed apps**. Messages, Gmail, Outlook, and common bank apps are allowed by default. If a bank app posts transaction alerts but isn't on the list, its package name appears under *Transaction-like alerts seen from* with an **Allow** button.
 
-SplitVCM reads the **notification** an SMS, bank or email app shows, not your SMS inbox (it has no SMS permission). An alert is captured only if it produces a notification, so muted conversations aren't read. If alerts don't arrive, **Capture status** lists the last few texts the listener skipped from allowed apps (long numbers hidden), which shows what Android actually passed on.
+SplitVCM reads the **notification** an SMS, bank or email app shows, not your SMS inbox (it has no SMS permission). Newer Android versions sometimes hide a notification's text from apps like SplitVCM ("Sensitive notification content hidden"), usually when they think it contains a one-time code; SplitVCM reads every field of the notification so the text is usually still found, and Capture status counts the ones it couldn't read ("Text hidden by Android"). For those, copy the SMS and use **Paste an alert to test**. An alert is captured only if it produces a notification, so muted conversations aren't read. If alerts don't arrive, **Capture status** lists the last few texts the listener skipped from allowed apps (long numbers hidden), which shows what Android actually passed on.
 
 Many bank alerts give only a date ("on 27 Sep 2026"). When the notification arrived that same day, its arrival time is used as the transaction time and shown as "(time received)"; otherwise the review card says "(no time in alert)".
 
@@ -175,13 +175,15 @@ Under **Capture & Privacy → Paste an alert to test**, paste any SMS or notific
 npm test
 ```
 
-417 tests in 26 files, about 96% of lines covered. The suites cover:
+564 tests in 28 files, about 96% of lines covered. The suites cover:
 
 | Suite | Tests | What it checks |
 | --- | ---: | --- |
 | `src/cashback/__tests__/parser.test.js` | 38 | Sample alerts per bank (`__tests__/fixtures/alerts.js`, including real HSBC wording with digits changed), ignored message types (OTP, failed, bill payment, cashback posting, bank-account debit), date and time formats, arrival time for date-only alerts, UPI handles |
 | `negative.test.js` | 56 | Things that must not happen: non-transaction texts captured, auto-add when unsure, false duplicates; bad IDs, amounts, cycles, cards and backups rejected without changing data |
 | `v130.test.js` | 31 | 1.3.0 fixes: round-off per ₹ value (1/100/120/150) or none, the popup model, same-amount spends kept separate, loan and limit offers ignored |
+| `recall.test.js` | 128 | **No real spend skipped**: every alert in `__tests__/fixtures/corpus.js` (55 formats from 17 banks and card apps, plus foreign currency) must pass the Android listener's filter — read from the Kotlin source — and the parser, including with Android's hidden-text placeholder, sender IDs, case and spacing changes; the whole pipeline records all of them |
+| `v131.test.js` | 16 | 1.3.1 fixes: real HSBC and SBI spends read (including next to Android's hidden-text placeholder), reward/cashback offers ignored while real spends that mention cashback are kept, Capture status after Reset counters and for hidden text |
 | `v130.edge.test.js` | 45 | 1.3.0 retest: round-off with caps, pools, refunds, reward points, old data and bad values; round-off kept through cards, linking and backups; duplicates in every direction (references, merchants, days, same SMS delivered twice vs two real spends); reference formats |
 | `inbox.test.js` | 26 | Capture pipeline, duplicates across sources, every review action, retention, failed-alert recovery, re-checking waiting alerts |
 | `matcher.test.js` | 20 | Auto-add vs each review reason, learned rules, UPI matching |
@@ -192,7 +194,7 @@ npm test
 | `cycles.test.js` | 11 | Statement and calendar cycles, start days 29–31, year boundaries, IST midnight |
 | `migration.test.js` | 11 | Upgrading data from the original app version, backup export and import |
 | `captureDiagnostics.test.js` | 8 | Each "Capture status" message |
-| `store.test.js` | 6 | One-time migration, ordered writes, retry after a failed load, unreadable old data |
+| `store.test.js` | 9 | One-time migration, ordered writes, retry after a failed load, unreadable old data, new default SMS apps merged once |
 | `capture.test.js` | 6 | Native queue → pipeline, Expo Go behaviour, consent-gated listener config, pasted alerts |
 | `src/auth/__tests__/pin.test.js` | 8 | PIN rules, SecureStore, legacy PIN migration |
 | `src/groups/__tests__/settlement.test.js` | 6 | Expense-split totals and settlements, including uneven decimal splits |
@@ -214,6 +216,8 @@ npx jest --coverage
 The tests run on your computer, not on a phone. They check behaviour and what text appears, but not how Android draws a screen (for example in dark mode), so give each new build a quick look on the device.
 
 Tests run in the `Asia/Kolkata` time zone (`jest.global-setup.js`) so cycle boundaries match the phone.
+
+**Recall comes first.** Capture is tuned so that a real card spend is never skipped; an extra alert in Needs review is acceptable. `fixtures/corpus.js` holds real spend formats, and `recall.test.js` checks each against both the Android listener's filter (its regexes are read from `CaptureListenerService.kt`) and the parser. When a bank alert is ever missed, add its text (with digits changed) to the corpus first.
 
 **Add your own alerts.** Real bank wording varies. Add anonymised copies of your alerts (remove your name, balances, and reference numbers) to `src/cashback/__tests__/fixtures/alerts.js`, along with the values you expect, and run `npm test`. If one fails, adjust the patterns in `src/cashback/parser.js`.
 

@@ -375,3 +375,10 @@ Decisions taken where confirmations were still open (all can be changed in the a
 - Duplicate rules use the bank reference, the merchant, and the arrival time, so same-amount spends on one day stay separate while SMS + email copies merge.
 - Loan and limit offers are ignored; bundled notifications are split into separate alerts in the listener (native change, needs a new build).
 - Tests: 417 in 26 files.
+
+### Version 1.3.1 (2026-10-03, branch `release/1.3.1`)
+
+- Android hides some notification text ("Sensitive notification content hidden"); the listener reads every field of a single message again and reports fully hidden ones in Capture status.
+- Reward and cashback offers are ignored unless the text is clearly a spend; spends that mention cashback are kept.
+- Recall analysis over 55 real formats found 11 skipped spends; all fixed, and a permanent recall test covers the Android filter and the parser.
+- Tests: 564 in 28 files.

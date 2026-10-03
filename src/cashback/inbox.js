@@ -14,10 +14,22 @@ import { cycleForDate } from "./cycles";
 // The capture pipeline and review actions operate on one plain state object:
 // { groups, templates, candidates, settings }. All functions are pure.
 
+// SMS apps commonly used in India. Added after 1.3.0; existing installs get
+// them once through ALLOWLIST_VERSION (see store.js).
+export const EXTRA_SMS_PACKAGES = [
+  "com.truecaller",
+  "com.microsoft.android.smsorganizer",
+  "com.android.messaging",
+  "com.oneplus.mms",
+];
+
+export const ALLOWLIST_VERSION = 2;
+
 export const DEFAULT_ALLOWED_PACKAGES = [
   "com.google.android.apps.messaging",
   "com.samsung.android.messaging",
   "com.android.mms",
+  ...EXTRA_SMS_PACKAGES,
   "com.google.android.gm",
   "com.microsoft.office.outlook",
   "com.snapwork.hdfc",
@@ -31,6 +43,7 @@ export const DEFAULT_SETTINGS = {
   captureEnabled: false,
   consentAcceptedAt: null,
   allowedPackages: DEFAULT_ALLOWED_PACKAGES,
+  allowlistVersion: ALLOWLIST_VERSION,
   includeCashWithdrawals: false,
   includeBankAccountDebits: false,
   duplicateWindowMinutes: 10,

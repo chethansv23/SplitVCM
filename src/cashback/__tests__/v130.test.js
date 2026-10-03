@@ -163,11 +163,15 @@ describe("3. loan and limit offers are not spends", () => {
   test.each([
     ["the reported email", LOAN_EMAIL],
     ["loan line without 'pre-approved'", "Your HDFC Bank Credit Card xx1234 has an updated loan limit of Rs.800000."],
-    ["loan line next to a spend word", "Your HDFC Bank Credit Card xx1234 has an updated loan limit of Rs.800000. Rs 500 spent at STORE."],
     ["instant loan offer", "Get an instant loan of Rs 2,00,000 on your Credit Card XX1234. Amount used: none."],
     ["limit increase", "Your credit limit has been increased to Rs 3,00,000 on Card XX1234. Not used yet."],
   ])("%s → ignored", (_, text) => {
     expect(parseNotification({ text, postedAt: NOW.toISOString() })).toMatchObject({ kind: "ignore", ignoreReason: "promotional" });
+  });
+
+  test("a loan line next to a clear spend is kept (a missed spend is worse than an extra review)", () => {
+    const p = parseNotification({ text: "Your HDFC Bank Credit Card xx1234 has an updated loan limit of Rs.800000. Rs 500 spent at STORE." });
+    expect(p.kind).toBe("debit");
   });
 
   test("a real spend that mentions EMI is still a spend", () => {
