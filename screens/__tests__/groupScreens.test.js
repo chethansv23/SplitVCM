@@ -268,3 +268,146 @@ describe("linking a manual group to its card", () => {
     expect(nav.goBack).not.toHaveBeenCalled();
   });
 });
+
+describe("cashback calculation: round-off popup and calculator", () => {
+  const openLivePlus = async (groupsFn) => {
+    const ctx = liveplusState();
+    const state = groupsFn ? { ...ctx.state, groups: groupsFn(ctx) } : ctx.state;
+    await seed(state);
+    await render(<CashbackGroupDetails route={{ params: { groupId: ctx.group.id } }} navigation={nav} />);
+    await screen.findByText("Add Transaction");
+    return ctx;
+  };
+  const withSpend = (amount) => (ctx) =>
+    require("../../src/cashback/groups").addTransaction(ctx.state.groups, ctx.group.id, {
+      name: "Blinkit", amount, categoryId: "grocery-10", occurredAt: "2026-09-14T10:00:00.000Z",
+    }).groups;
+  const cashbackShown = () => screen.getByLabelText("Calculated cashback").props.children;
+  const group = async () => (await getState()).groups[0];
+
+  // Opens the popup and saves "no round-off" (value null) or "per ₹ value".
+  const setRoundOff = async (value) => {
+    await fireEvent.press(screen.getByLabelText("How cashback is calculated"));
+    if (value == null) {
+      await fireEvent.press(screen.getByLabelText("No round-off"));
+    } else {
+      await fireEvent.press(screen.getByLabelText("Round off per ₹ spent"));
+      await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), String(value));
+    }
+    await fireEvent.press(screen.getByText("Save"));
+  };
+
+  test("the group shows its method; the popup sets per ₹100, ₹150, ₹120, ₹1 and no round-off", async () => {
+    await openLivePlus(withSpend(325.5));
+    expect(screen.getByText("Round off per ₹1")).toBeTruthy();
+    expect((await group()).totalCashback).toBe(32);
+
+    for (const [value, total, rounding] of [
+      [100, 30, "per-block-spent"],
+      [150, 30, "per-block-spent"],
+      [120, 24, "per-block-spent"],
+      [1, 32, "per-transaction-floor"],
+      [null, 32.55, "none"],
+    ]) {
+      await setRoundOff(value);
+      await waitFor(async () => expect((await group()).totalCashback).toBe(total));
+      expect((await group()).rounding).toBe(rounding);
+    }
+    expect(screen.getByText("No round-off")).toBeTruthy();
+  });
+
+  test("popup: an invalid value can't be saved; Cancel keeps the old method", async () => {
+    await openLivePlus();
+    await fireEvent.press(screen.getByLabelText("How cashback is calculated"));
+    await fireEvent.press(screen.getByLabelText("Round off per ₹ spent"));
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "0");
+    expect(screen.getByText("Enter a value above ₹0, e.g. 1, 100 or 150.")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Save"));
+    expect(screen.getByText("Enter a value above ₹0, e.g. 1, 100 or 150.")).toBeTruthy(); // still open
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "150");
+    expect(screen.getByText("Example: 10% of ₹325.50 = ₹30 (counts ₹300)")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect((await group()).rounding).toBe("per-transaction-floor");
+  });
+
+  test("calculator: amount, rate and round-off are all editable; nothing is saved", async () => {
+    await openLivePlus();
+    await fireEvent.press(screen.getByText("Cashback calculator"));
+    await fireEvent.changeText(screen.getByLabelText("Spend amount (₹)"), "325.5");
+    await fireEvent.press(screen.getAllByText("10% groceries (10%)").at(-1));
+    expect(screen.getByLabelText("Cashback rate (%)").props.value).toBe("10");
+    expect(cashbackShown()).toBe("₹32"); // the group's round-off: per ₹1
+
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "150");
+    expect(cashbackShown()).toBe("₹30");
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "120");
+    expect(cashbackShown()).toBe("₹24");
+    await fireEvent.press(screen.getByLabelText("No round-off"));
+    expect(cashbackShown()).toBe("₹32.55");
+    await fireEvent.changeText(screen.getByLabelText("Cashback rate (%)"), "5");
+    expect(cashbackShown()).toBe("₹16.27");
+
+    await fireEvent.press(screen.getByLabelText("Round off per ₹ spent"));
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "");
+    expect(screen.getByText("Enter a value above ₹0, e.g. 1, 100 or 150.")).toBeTruthy();
+
+    const g = await group();
+    expect(g.transactions).toHaveLength(0);
+    expect(g.rounding).toBe("per-transaction-floor");
+  });
+
+  test("calculator: a 0% category fills in 0, and the rate can still be typed", async () => {
+    await openLivePlus();
+    await fireEvent.press(screen.getByText("Cashback calculator"));
+    await fireEvent.changeText(screen.getByLabelText("Spend amount (₹)"), "500");
+    await fireEvent.press(screen.getAllByText("0% / excluded").at(-1));
+    expect(screen.getByLabelText("Cashback rate (%)").props.value).toBe("0");
+    expect(cashbackShown()).toBe("₹0");
+    await fireEvent.changeText(screen.getByLabelText("Cashback rate (%)"), "2");
+    expect(cashbackShown()).toBe("₹10");
+  });
+
+  test("calculator: a category with no rate set starts at 0", async () => {
+    await openLivePlus((ctx) =>
+      ctx.state.groups.map((g) => ({
+        ...g,
+        categories: g.categories.map((c) => (c.id === "dining-10" ? { ...c, percentage: null } : c)),
+      }))
+    );
+    await fireEvent.press(screen.getByText("Cashback calculator"));
+    await fireEvent.press(screen.getByText("10% dining & food delivery (rate not set)"));
+    expect(screen.getByLabelText("Cashback rate (%)").props.value).toBe("0");
+  });
+
+  test("calculator respects the category's remaining cap", async () => {
+    await openLivePlus(withSpend(9500));
+    await fireEvent.press(screen.getByText("Cashback calculator"));
+    await fireEvent.changeText(screen.getByLabelText("Spend amount (₹)"), "1000");
+    await fireEvent.press(screen.getAllByText("10% groceries (10%)").at(-1));
+    expect(cashbackShown()).toBe("₹50"); // ₹1000 pool cap, ₹950 used
+    expect(screen.getByText(/= ₹100 before caps/)).toBeTruthy();
+  });
+
+  test("a new manual group can round off per ₹150", async () => {
+    const CreateCashbackGroup = require("../CreateCashbackGroup").default;
+    await seed({});
+    await render(<CreateCashbackGroup navigation={nav} />);
+    await fireEvent.changeText(screen.getByPlaceholderText("e.g. Credit Card A"), "SBI Card");
+    await setRoundOff(150);
+    expect(screen.getByText("Round off per ₹150")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Create Group"));
+    await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
+    expect(await group()).toMatchObject({ rounding: "per-block-spent", blockSize: 150 });
+  });
+
+  test("card editor saves the round-off value", async () => {
+    const TemplateEditor = require("../cashback/TemplateEditor").default;
+    const ctx = liveplusState();
+    await seed(ctx.state);
+    await render(<TemplateEditor route={{ params: { templateId: ctx.template.id } }} navigation={nav} />);
+    await screen.findByText("Save card");
+    await setRoundOff(100);
+    await fireEvent.press(screen.getByText("Save card"));
+    await waitFor(async () => expect((await getState()).templates[0]).toMatchObject({ rounding: "per-block-spent", blockSize: 100 }));
+  });
+});

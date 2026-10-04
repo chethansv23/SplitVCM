@@ -350,3 +350,16 @@ test("Capture status lists texts the listener skipped from allowed apps", async 
   const texts = screen.getAllByText(/Call me when free|\(no text in the notification\)/).map((t) => t.props.children);
   expect(texts[0]).toBe("Call me when free");
 });
+
+// In the app, expo-constants exposes app.json as expoConfig; give the test the same.
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: { expoConfig: require("../../app.json").expo },
+}));
+
+test("Capture & Privacy shows the app version from app.json", async () => {
+  const { expo } = require("../../app.json");
+  await seed({});
+  await render(<CaptureSettings navigation={nav} />);
+  expect(await screen.findByText(`SplitVCM ${expo.version}`)).toBeTruthy();
+});

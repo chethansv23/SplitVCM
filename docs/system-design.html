@@ -129,9 +129,10 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
   <h1>How SplitVCM turns a bank SMS into cashback</h1>
   <p class="dek">The capture pipeline, cashback maths and data model behind the Cashback tab: what runs where, what decides whether a spend is added automatically, and why the numbers always add up.</p>
   <div class="meta">
-    <span>Branch <b>autom_track</b></span>
-    <span>Updated <b>26 Sep 2026</b></span>
-    <span>Tests <b>323 passing</b></span>
+    <span>Version <b>1.3.1</b></span>
+    <span>Branch <b>release/1.3.1</b></span>
+    <span>Updated <b>3 Oct 2026</b></span>
+    <span>Tests <b>564 passing</b></span>
     <span>Platform <b>Expo SDK 57 · Android</b></span>
   </div>
 </header>
@@ -213,7 +214,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
     </div>
     <figcaption><b>Figure 1.</b> The purple half exists only in the SplitVCM development build, which is why Expo Go always reports zero captured alerts. The queue is a separate file, so the background listener never writes to the app's own storage.</figcaption>
   </figure>
-  <p class="prose">The listener does as little as possible. It skips apps you haven't allowed, and it skips text without an amount (Rs, INR or ₹) and a spend word (spent, debited, paid…). It also skips an exact re-post of a notification it already queued. Everything else, including the decision about what the alert means, happens in JavaScript, where it can be unit-tested.</p>
+  <p class="prose">The listener does as little as possible. It skips apps you haven't allowed, and it skips text without an amount (Rs, INR or ₹) and a spend word (spent, debited, paid…). It also skips an exact re-post of a notification it already queued. The filter is deliberately loose (an amount plus a spend word, or plus a card, account or UPI mention), because a missed real spend is worse than an extra alert to review. Newer Android versions can replace a notification's text with "Sensitive notification content hidden" in some fields, so the listener reads every field of a message and ignores the placeholders; a notification hidden in every field is counted in Capture status as "Text hidden by Android". Everything else, including the decision about what the alert means, happens in JavaScript, where it can be unit-tested.</p>
 </section>
 
 <section id="pipeline">
@@ -287,7 +288,22 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
     </dl>
   </div>
   <p class="prose">An alert that goes to review isn't stuck there. When you add a card's digits, save a card or create a cycle, and each time the app opens, alerts waiting in review are checked again. Ones that are now certain move into their cycle automatically.</p>
-  <p class="prose">If the same spend then arrives by email ("…debited … towards BIGBASKET on 14 Sep 2026"), it has the same card and amount on the same day, so it's merged into the first record instead of being counted twice.</p>
+  <p class="prose">If the same spend then arrives by email ("…debited … towards BIGBASKET on 14 Sep 2026"), it has the same card, amount, merchant and day, so it's merged into the first record instead of being counted twice.</p>
+  <h3>Same amount, same day: one spend or two?</h3>
+  <p class="prose">Two ₹100 spends on one card on one day are common. The app treats two alerts as the same spend only when nothing says otherwise:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Different bank references (UPI 615200079966 vs 799638462184)</td><td><span class="pill review">two spends</span></td></tr>
+        <tr><td>Different merchants (Pani Puri Corner vs AMINAREDDY)</td><td><span class="pill review">two spends</span></td></tr>
+        <tr><td>Two SMS from the same app that arrived at different times, even with identical text</td><td><span class="pill review">two spends</span></td></tr>
+        <tr><td>The same SMS delivered twice (identical text, same arrival time)</td><td><span class="pill good">one spend</span></td></tr>
+        <tr><td>SMS and email with the same reference, or the same merchant on the same day</td><td><span class="pill good">one spend</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">The listener also splits a notification that bundles several messages (a Google Messages conversation, a Gmail inbox summary) into separate alerts, each with its own arrival time. Read as one text, a loan offer ("pre-approved loan limit of Rs.800000") could borrow the word "spent" from a neighbouring message; loan and limit offers are also ignored outright, as are cashback and reward offers ("You've earned ₹75 cashback… claim it") unless the text is clearly a spend.</p>
 </section>
 
 <section id="review">
@@ -325,7 +341,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
         <text class="d-s" x="69" y="63" text-anchor="middle">then by id</text>
         <rect class="d-box" x="152" y="20" width="118" height="60" rx="8"/>
         <text class="d-t" x="211" y="45" text-anchor="middle">Rate × amount</text>
-        <text class="d-s" x="211" y="63" text-anchor="middle">rounded down</text>
+        <text class="d-s" x="211" y="63" text-anchor="middle">round-off per ₹N</text>
         <rect class="d-box" x="294" y="20" width="118" height="60" rx="8"/>
         <text class="d-t" x="353" y="45" text-anchor="middle">Category cap</text>
         <text class="d-s" x="353" y="63" text-anchor="middle">per category</text>
@@ -356,9 +372,24 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
   <ul class="plain prose">
     <li><b>Refunds</b> are negative transactions linked to the original spend. They take back at most what that category has earned so far.</li>
     <li><b>0% / excluded</b> categories and categories with a blank rate earn nothing. Every card has a 0% category, so excluded spends still show up in the totals.</li>
-    <li><b>Rounding</b> is a setting on each card: round down each transaction, round down the cycle total, or no rounding.</li>
+    <li><b>Round-off</b> is set per card and per group in a popup: no round-off, or round off per ₹N, where N is any value (see below).</li>
     <li><b>Reward points</b> (PhonePe SBI) are converted with an editable reward value, ₹1 per point by default.</li>
   </ul>
+  <h3>Round-off: one value covers every card</h3>
+  <p class="prose">Cards differ in how they round. HSBC rounds each spend down; SBI pays per full ₹100. Instead of a list of fixed choices, the popup asks for one value: <b>round off per ₹N</b>. The spend is counted in full steps of N, then the cashback is rounded down. <b>No round-off</b> keeps the exact amount.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Round off per</th><th>Counts of ₹325.50</th><th class="num">10% cashback</th><th>Card</th></tr></thead>
+      <tbody>
+        <tr><td>₹1</td><td>₹325, rounded down</td><td class="num">₹32</td><td>HSBC</td></tr>
+        <tr><td>₹100</td><td>₹300</td><td class="num">₹30</td><td>SBI (PhonePe SBI default)</td></tr>
+        <tr><td>₹120</td><td>₹240</td><td class="num">₹24</td><td>—</td></tr>
+        <tr><td>₹150</td><td>₹300</td><td class="num">₹30</td><td>—</td></tr>
+        <tr><td>No round-off</td><td>₹325.50</td><td class="num">₹32.55</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">The <b>cashback calculator</b> on each group takes the same inputs and makes all of them editable: spend amount, rate (filled in from a category), and round-off. It shows the cashback, the amount before caps if a cap limits it, and the caps left, without saving anything.</p>
 </section>
 
 <section id="data">
@@ -500,22 +531,25 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; font-size: 13.5px
 
 <section id="tests">
   <h2>Tests and open items</h2>
-  <p class="prose">323 tests in 24 files run with <code>npm test</code>, in the Asia/Kolkata time zone so cycle boundaries match the phone. About 96% of lines are covered.</p>
+  <p class="prose">564 tests in 28 files run with <code>npm test</code>, in the Asia/Kolkata time zone so cycle boundaries match the phone. About 96% of lines are covered.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Area</th><th class="num">Tests</th><th>Covers</th></tr></thead>
       <tbody>
-        <tr><td>Parser</td><td class="num">33</td><td>Sample alerts per bank, including real HSBC wording; ignored types; date and time formats</td></tr>
+        <tr><td>Parser</td><td class="num">38</td><td>Sample alerts per bank, including real HSBC wording; ignored types; date and time formats; arrival time</td></tr>
         <tr><td>Negative cases</td><td class="num">56</td><td>Things that must not happen: no auto-add when unsure, no false merges, bad input rejected</td></tr>
-        <tr><td>Decision and pipeline</td><td class="num">45</td><td>Every review reason, duplicates, review actions, retention, re-checking waiting alerts</td></tr>
-        <tr><td>Maths, cycles, cards, transactions</td><td class="num">64</td><td>Caps, pools, refunds, rounding, cycle dates, card catalogue, edit and move, linking a group to a card</td></tr>
-        <tr><td>Storage, backup, capture</td><td class="num">33</td><td>Upgrade, ordered writes, export/import, native queue, Capture status</td></tr>
-        <tr><td>Screens and app</td><td class="num">78</td><td>Every cashback screen, the dropdown, expense-split screens, PIN setup, review prompt</td></tr>
+        <tr><td>Recall: no real spend skipped</td><td class="num">128</td><td>55 spend formats from 17 banks and card apps through the Android filter (read from the Kotlin source) and the parser, with hidden-text placeholders, sender IDs, case and spacing changes</td></tr>
+        <tr><td>Version 1.3.0–1.3.1 and retests</td><td class="num">92</td><td>Round-off per ₹1/100/120/150 or none with caps, pools, refunds, reward points, old data and bad values; duplicates in every direction; loan and reward offers; real HSBC/SBI spends next to hidden-text placeholders; reference formats</td></tr>
+        <tr><td>Decision and pipeline</td><td class="num">46</td><td>Every review reason, duplicates, review actions, retention, re-checking waiting alerts</td></tr>
+        <tr><td>Maths, cycles, cards, transactions</td><td class="num">64</td><td>Caps, pools, refunds, cycle dates, card catalogue, edit and move, linking a group to a card</td></tr>
+        <tr><td>Storage, backup, capture</td><td class="num">35</td><td>Upgrade, ordered writes, export/import, native queue, Capture status, older builds</td></tr>
+        <tr><td>Screens and app</td><td class="num">88</td><td>Every cashback screen, round-off popup, calculator, dropdown, expense-split screens, PIN setup, review prompt</td></tr>
         <tr><td>PIN and expense split</td><td class="num">14</td><td>PIN rules and storage, settlement maths</td></tr>
       </tbody>
     </table>
   </div>
   <p class="note prose"><b>Verified on a phone:</b> the development build and the preview APK install and run, and a real HSBC SMS was captured from Google Messages into the review inbox. The tests don't check how Android draws screens: the dark-mode dropdown bug was found on the device. So each new build still gets a quick look on the phone.</p>
+  <p class="note prose"><b>Needs the next build:</b> 1.3.1 changes how the Kotlin listener reads notification fields; the next APK build is its first compile check.</p>
 </section>
 
 <footer>SplitVCM · generated from the <code>autom_track</code> branch on 26 Sep 2026. Card rates and caps are starting values from issuer terms and can be edited in the app.</footer>

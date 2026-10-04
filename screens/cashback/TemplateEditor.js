@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Alert, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 import { Banner, Btn, Chips, Field, Section, Toggle, ui } from "../../components/cashback/ui";
-import { ROUNDING } from "../../src/cashback/compute";
+import CalculationMethodFields from "../../components/cashback/CalculationMethodFields";
+import { DEFAULT_BLOCK_SIZE, ROUNDING } from "../../src/cashback/compute";
 import { recheckReview } from "../../src/cashback/capture";
 import { newId } from "../../src/cashback/ids";
 import { updateState, useCashbackState } from "../../src/cashback/store";
@@ -21,6 +22,7 @@ export default function TemplateEditor({ route, navigation }) {
   const [mode, setMode] = useState(t?.cycle?.mode || "billing-cycle");
   const [startDay, setStartDay] = useState(t?.cycle?.startDay ? String(t.cycle.startDay) : "");
   const [rounding, setRounding] = useState(t?.rounding || ROUNDING.PER_TRANSACTION_FLOOR);
+  const [blockSize, setBlockSize] = useState(t?.blockSize ?? DEFAULT_BLOCK_SIZE);
   const [groupCap, setGroupCap] = useState(t?.groupCap == null ? "" : String(t.groupCap));
   const [rewardValue, setRewardValue] = useState(String(t?.rewardValue ?? 1));
   const [poolName, setPoolName] = useState("");
@@ -50,6 +52,7 @@ export default function TemplateEditor({ route, navigation }) {
       upiEnabled: upi,
       cycle: mode === "calendar-month" ? { mode } : { mode, startDay: startDay ? day : null },
       rounding,
+      blockSize,
       groupCap: numOrNull(groupCap),
       rewardValue: numOrNull(rewardValue) ?? 1,
     }));
@@ -163,15 +166,13 @@ export default function TemplateEditor({ route, navigation }) {
         />
       )}
 
-      <Text style={[ui.strong, { marginTop: 10 }]}>Rounding</Text>
-      <Chips
-        value={rounding}
-        onChange={setRounding}
-        options={[
-          { value: ROUNDING.PER_TRANSACTION_FLOOR, label: "Floor each txn" },
-          { value: ROUNDING.CYCLE_TOTAL_FLOOR, label: "Floor cycle total" },
-          { value: ROUNDING.NONE, label: "No rounding" },
-        ]}
+      <CalculationMethodFields
+        rounding={rounding}
+        blockSize={blockSize}
+        onChange={(m) => {
+          setRounding(m.rounding);
+          setBlockSize(m.blockSize);
+        }}
       />
       <Field label="Overall cycle cap (₹, blank for none)" value={groupCap} onChangeText={setGroupCap} keyboardType="numeric" />
       <Field label="Reward value (₹ per point; 1 for cashback)" value={rewardValue} onChangeText={setRewardValue} keyboardType="numeric" />

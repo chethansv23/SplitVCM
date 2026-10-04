@@ -1,4 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useCallback, useState } from "react";
 import { Alert, AppState, ScrollView, Share, Text, View } from "react-native";
 
@@ -10,6 +11,9 @@ import { formatDateTime } from "../../src/cashback/dates";
 import { ingestPastedAlert, processCapturedNotifications, syncCaptureConfig } from "../../src/cashback/capture";
 import { deleteAllCapturedText } from "../../src/cashback/inbox";
 import { readExpenseGroups, updateState, useCashbackState, writeExpenseGroups } from "../../src/cashback/store";
+
+// The version in app.json; bump it for every release (see CHANGELOG.md).
+const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 
 const SOURCES = [
   { value: "com.google.android.apps.messaging", label: "SMS" },
@@ -307,6 +311,10 @@ export default function CaptureSettings({ navigation }) {
         <Field label="Import: paste backup JSON" value={importJson} onChangeText={setImportJson} multiline style={{ minHeight: 80 }} />
         <Btn kind="secondary" title="Import" onPress={importData} />
       </Section>
+
+      <Text style={[ui.small, { textAlign: "center", marginTop: 24 }]}>
+        SplitVCM {APP_VERSION}
+      </Text>
     </ScrollView>
   );
 }

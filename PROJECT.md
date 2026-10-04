@@ -60,7 +60,8 @@ Stored under `cashbacks`. Cycle groups come from a card template; manual groups 
   ],
   capPools: [{ id: "accelerated", name: "Accelerated 10% cap", cap: 1000, categoryIds: ["dining-10", "grocery-10"] }],
   groupCap: null,
-  rounding: "per-transaction-floor", // or "cycle-total-floor", "none"
+  rounding: "per-transaction-floor", // "per-block-spent", "none", or legacy "cycle-total-floor"
+  blockSize: 100,                    // for "per-block-spent": round off per ₹blockSize
   rewardValue: 1,                    // rupees per point
   transactions: [
     { id: "tx-…", name: "BIGBASKET", amount: 899, categoryId: "grocery-10",
@@ -72,7 +73,9 @@ Stored under `cashbacks`. Cycle groups come from a card template; manual groups 
 }
 ```
 
-Cashback is **derived**: `computeCycle` sorts transactions by date and applies rate × reward value, rounding, the category cap, every cap pool the category belongs to, and the group cap, in that order. Refunds (negative amounts) claw back at most what the category has earned. Stored totals are caches that `withComputed` rewrites after every change.
+Cashback is **derived**: `computeCycle` sorts transactions by date and applies rate × reward value, the round-off, the category cap, every cap pool the category belongs to, and the group cap, in that order.
+
+**Round-off** (`cashbackFor` in `compute.js`) is what the "How cashback is calculated" popup sets: *no round-off* (`none`, exact to the paisa) or *round off per ₹N*. N = 1 is stored as `per-transaction-floor` (round each spend down, HSBC); any other N is `per-block-spent` with `blockSize: N`, which counts only whole ₹N steps of the spend and rounds the result down (N = 100 for SBI: 10% of ₹325.50 = ₹30). `toRoundOff` / `fromRoundOff` convert between the popup and these fields; `describeMethod` gives the label and a worked example. Drafts stored as `per-100-spent` are read as ₹100 blocks. Refunds (negative amounts) claw back at most what the category has earned. Stored totals are caches that `withComputed` rewrites after every change.
 
 ### Card template
 
@@ -86,7 +89,9 @@ After any change to cards or cycles, `recheckPending` (in `inbox.js`, called thr
 
 ### Captured alert (candidate)
 
-Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText, receivedAt, parsed: { amount, merchant, cardLastFour, channel, vpa, occurredAt, direction, confidence }, suggestedTemplateId, suggestedGroupId, suggestedCategoryId, reviewReasons, status, duplicateSources, assignedGroupId, transactionId, resolvedAt }`. `status` is `pending-review`, `assigned`, `reviewed`, or `ignored`. `rawText` is cleared by retention.
+Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText, receivedAt, postedAt, parsed: { amount, merchant, cardLastFour, channel, vpa, reference, occurredAt, timeSource, direction, confidence }, suggestedTemplateId, suggestedGroupId, suggestedCategoryId, reviewReasons, status, duplicateSources, assignedGroupId, transactionId, resolvedAt }`. `status` is `pending-review`, `assigned`, `reviewed`, or `ignored`. `rawText` is cleared by retention. `postedAt` is when the notification arrived.
+
+**Duplicates** (`dedupe.js`): the same spend often arrives by SMS, bank app and email. Two alerts are one spend only when nothing says otherwise: same amount, direction and card (when both name one); same bank `reference` when both have one; compatible merchants ("Swiggy" and "SWIGGY INSTAMART" are compatible, two different shops are not); and close in time (same day when an alert has no time of its own). Two alerts from the **same app** are one spend only if the text is identical and they arrived within a minute (the same message delivered twice); otherwise they are separate spends.
 
 ## Key implementation details
 
@@ -101,5 +106,6 @@ Stored under `captureCandidates`: `{ id, fingerprint, source, sourceApp, rawText
 - Preserve the existing AsyncStorage keys. Changes to the cashback data shape need a new `CURRENT_SCHEMA_VERSION` and a migration in `src/cashback/migration.js`.
 - Keep cashback logic in `src/cashback/` pure (no React Native imports) and cover it with tests; screens should only call it.
 - Add real (anonymised) alert samples to the parser fixtures whenever a bank's wording isn't parsed.
+- Capture favours recall: never skip a real spend, accept extra alerts to review. Ignore rules (offers, loans, rewards, OTP) don't apply when the text has a clear spend phrase. Every format in `src/cashback/__tests__/fixtures/corpus.js` must pass both the Kotlin quick filter and the parser (`recall.test.js`); keep the filter's regexes in `CaptureListenerService.kt` readable by that test.
 - Use `Select` from `components/cashback/ui.js` for choices, not the native Android picker: the native one follows the phone's dark mode and drew white text on white fields. Give text inputs an explicit text colour for the same reason.
 - Update this guide and the README when adding new screens, storage models, scripts, or setup requirements.

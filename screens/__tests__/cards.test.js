@@ -125,10 +125,13 @@ describe("TemplateEditor", () => {
     expect(alerts.last().title).toBe("Card suffix must be 4 digits");
 
     await fireEvent.changeText(screen.getByDisplayValue("56a"), "5678");
-    await fireEvent.press(screen.getByText("Floor cycle total"));
+    await fireEvent.press(screen.getByLabelText("How cashback is calculated"));
+    await fireEvent.press(screen.getByLabelText("Round off per ₹ spent"));
+    await fireEvent.changeText(screen.getByLabelText("Round off per ₹"), "150");
+    await fireEvent.press(screen.getByText("Save"));
     await fireEvent.press(screen.getByText("Save card"));
     await waitFor(async () => expect((await saved()).cardLastFour).toBe("5678"));
-    expect(await saved()).toMatchObject({ cycle: { mode: "billing-cycle", startDay: 15 }, rounding: "cycle-total-floor" });
+    expect(await saved()).toMatchObject({ cycle: { mode: "billing-cycle", startDay: 15 }, rounding: "per-block-spent", blockSize: 150 });
   });
 
   test("calendar month cycle", async () => {

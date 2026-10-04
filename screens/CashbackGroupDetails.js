@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Icon from "react-native-vector-icons/EvilIcons";
 
+import CalculationMethodFields from "../components/cashback/CalculationMethodFields";
+import CashbackCalculator from "../components/cashback/CashbackCalculator";
 import { Banner, Btn, Chips, COLORS, Field, money, ui } from "../components/cashback/ui";
-import { computeCycle, previewCashback, sortTransactions } from "../src/cashback/compute";
+import { computeCycle, previewCashback, sortTransactions, withComputed } from "../src/cashback/compute";
 import { formatDateTime, formatRange, parseEditableDateTime, toEditableDateTime } from "../src/cashback/dates";
 import { addTransaction, deleteTransaction, isOutsideCycle } from "../src/cashback/groups";
 import { updateState, useCashbackState } from "../src/cashback/store";
@@ -20,6 +22,7 @@ export default function CashbackGroupDetails({ route, navigation }) {
   const [amount, setAmount] = useState("");
   const [when, setWhen] = useState(toEditableDateTime());
   const [categoryId, setCategoryId] = useState(null);
+  const [showCalculator, setShowCalculator] = useState(false);
 
   const result = useMemo(() => (group ? computeCycle(group) : null), [group]);
 
@@ -82,6 +85,14 @@ export default function CashbackGroupDetails({ route, navigation }) {
         },
       },
     ]);
+
+  // Changing the method recalculates every transaction in this group. A
+  // card's new cycles use the card's own setting.
+  const setMethod = ({ rounding, blockSize }) =>
+    updateState((s) => ({
+      ...s,
+      groups: s.groups.map((g) => (g.id === groupId ? withComputed({ ...g, rounding, blockSize }) : g)),
+    }));
 
   const toggleClosed = () =>
     updateState((s) => ({
@@ -157,6 +168,16 @@ export default function CashbackGroupDetails({ route, navigation }) {
           {p.name}: {result.byCapPool[p.id].remaining == null ? "no cap" : `${money(result.byCapPool[p.id].remaining)} of ${money(p.cap)} remaining`}
         </Text>
       ))}
+
+      <CalculationMethodFields rounding={group.rounding} blockSize={group.blockSize} onChange={setMethod} />
+      <Btn
+        small
+        kind="secondary"
+        title={showCalculator ? "Hide calculator" : "Cashback calculator"}
+        onPress={() => setShowCalculator(!showCalculator)}
+        style={{ alignSelf: "flex-start", marginTop: 8 }}
+      />
+      {showCalculator ? <CashbackCalculator group={group} /> : null}
 
       <View style={[ui.between, { marginTop: 14 }]}>
         <Text style={ui.strong}>Categories <Text style={ui.small}>(tap to edit or delete)</Text></Text>

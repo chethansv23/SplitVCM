@@ -14,10 +14,22 @@ import { cycleForDate } from "./cycles";
 // The capture pipeline and review actions operate on one plain state object:
 // { groups, templates, candidates, settings }. All functions are pure.
 
+// SMS apps commonly used in India. Added after 1.3.0; existing installs get
+// them once through ALLOWLIST_VERSION (see store.js).
+export const EXTRA_SMS_PACKAGES = [
+  "com.truecaller",
+  "com.microsoft.android.smsorganizer",
+  "com.android.messaging",
+  "com.oneplus.mms",
+];
+
+export const ALLOWLIST_VERSION = 2;
+
 export const DEFAULT_ALLOWED_PACKAGES = [
   "com.google.android.apps.messaging",
   "com.samsung.android.messaging",
   "com.android.mms",
+  ...EXTRA_SMS_PACKAGES,
   "com.google.android.gm",
   "com.microsoft.office.outlook",
   "com.snapwork.hdfc",
@@ -31,6 +43,7 @@ export const DEFAULT_SETTINGS = {
   captureEnabled: false,
   consentAcceptedAt: null,
   allowedPackages: DEFAULT_ALLOWED_PACKAGES,
+  allowlistVersion: ALLOWLIST_VERSION,
   includeCashWithdrawals: false,
   includeBankAccountDebits: false,
   duplicateWindowMinutes: 10,
@@ -64,7 +77,11 @@ export const ingestNotification = (state, raw, now = new Date()) => {
     return { state, outcome: "ignored", reason: parsed.ignoreReason };
   }
 
-  const duplicate = findDuplicateCandidate(parsed, state.candidates, settings.duplicateWindowMinutes);
+  const duplicate = findDuplicateCandidate(parsed, state.candidates, settings.duplicateWindowMinutes, {
+    sourceApp: raw.sourceApp || null,
+    rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
+    postedAt: raw.postedAt || null,
+  });
   if (duplicate) {
     const merged = {
       ...duplicate,
@@ -84,6 +101,8 @@ export const ingestNotification = (state, raw, now = new Date()) => {
     sourceApp: raw.sourceApp || null,
     rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
     receivedAt: now.toISOString(),
+    // When the notification arrived; tells a re-delivered SMS from a new one.
+    postedAt: raw.postedAt || null,
     parsed,
     suggestedTemplateId: decision.suggestion.templateId,
     suggestedGroupId: decision.suggestion.groupId,
@@ -118,6 +137,7 @@ const unprocessedCandidate = (raw, now) => ({
   sourceApp: raw.sourceApp || null,
   rawText: [raw.title, raw.text].filter(Boolean).join("\n"),
   receivedAt: now.toISOString(),
+  postedAt: raw.postedAt || null,
   parsed: {
     kind: "debit", direction: "debit", amount: null, merchant: null, cardLastFour: null,
     channel: "card", vpa: null, occurredAt: raw.postedAt || now.toISOString(),
